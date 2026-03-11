@@ -83,9 +83,6 @@ export default function AuctionsPage() {
                       minute: '2-digit',
                     })}
                   </span>
-                  {auction.status === 'live' && (
-                    <span>👁 {auction.viewerCount} צופים</span>
-                  )}
                 </div>
               </Link>
             ))}
