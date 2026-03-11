@@ -1,21 +1,34 @@
-import { ref, onValue, onDisconnect, set, increment } from 'firebase/database';
+import { ref, onValue, onDisconnect, set, remove } from 'firebase/database';
 import { db } from './firebase';
 
-export function trackViewer(auctionId: string): () => void {
+function getSessionId(): string {
+  if (typeof window === 'undefined') return 'ssr';
+  let sid = sessionStorage.getItem('nbc_session_id');
+  if (!sid) {
+    sid = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    sessionStorage.setItem('nbc_session_id', sid);
+  }
+  return sid;
+}
+
+let hasIncremented = false;
+
+export function trackViewer(auctionId: string, userId?: string | null): () => void {
+  const sessionId = userId || getSessionId();
   const connectedRef = ref(db, '.info/connected');
-  const viewerRef = ref(db, `auctions/${auctionId}/viewerCount`);
-  const myPresenceRef = ref(db, `presence/${auctionId}/${Date.now()}_${Math.random().toString(36).slice(2)}`);
+  const myPresenceRef = ref(db, `presence/${auctionId}/${sessionId}`);
 
-  const unsub = onValue(connectedRef, async (snap) => {
-    if (snap.val() === true) {
-      // Decrement on disconnect
+  const unsub = onValue(connectedRef, (snap) => {
+    if (snap.val() === true && !hasIncremented) {
+      hasIncremented = true;
       onDisconnect(myPresenceRef).remove();
-      onDisconnect(viewerRef).set(increment(-1));
-
-      await set(myPresenceRef, true);
-      await set(viewerRef, increment(1));
+      set(myPresenceRef, true);
     }
   });
 
-  return unsub;
+  return () => {
+    unsub();
+    hasIncremented = false;
+    remove(myPresenceRef);
+  };
 }

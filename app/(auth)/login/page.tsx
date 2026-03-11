@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -11,7 +11,22 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
   const router = useRouter();
+
+  const handleReset = async () => {
+    if (!email) {
+      toast.error('הכנס אימייל קודם');
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setResetSent(true);
+      toast.success('נשלח מייל לאיפוס סיסמה');
+    } catch {
+      toast.error('שגיאה בשליחת מייל איפוס');
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,6 +85,16 @@ export default function LoginPage() {
             {loading ? 'מתחבר...' : 'התחבר'}
           </button>
         </form>
+
+        <div className="text-center">
+          <button
+            type="button"
+            onClick={handleReset}
+            className="text-sm text-accent hover:underline"
+          >
+            {resetSent ? 'נשלח! בדוק את המייל' : 'שכחתי סיסמה'}
+          </button>
+        </div>
 
         <div className="text-center text-sm text-text-secondary">
           אין לך חשבון?{' '}

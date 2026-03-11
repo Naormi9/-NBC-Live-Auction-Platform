@@ -4,6 +4,16 @@ import * as admin from 'firebase-admin';
 const db = admin.database();
 
 export const advanceRoundOrItem = functions.https.onCall(async (data, context) => {
+  // Auth gate — only admin or house_manager may advance
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be logged in');
+  }
+  const callerSnap = await db.ref(`/users/${context.auth.uid}/role`).once('value');
+  const role = callerSnap.val();
+  if (role !== 'admin' && role !== 'house_manager') {
+    throw new functions.https.HttpsError('permission-denied', 'Admin or house_manager role required');
+  }
+
   const { auctionId } = data;
   if (!auctionId) throw new functions.https.HttpsError('invalid-argument', 'Missing auctionId');
 

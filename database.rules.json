@@ -9,7 +9,7 @@
     "auction_items": {
       ".read": true,
       "$itemId": {
-        ".write": "false"
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager')"
       }
     },
     "auctions": {
@@ -21,9 +21,11 @@
     "pre_bids": {
       "$auctionId": {
         "$itemId": {
+          ".read": "auth != null",
           "$userId": {
             ".read": "auth != null && auth.uid === $userId",
-            ".write": "auth != null && auth.uid === $userId"
+            ".write": "auth != null && auth.uid === $userId",
+            ".validate": "newData.hasChildren(['userId','amount','timestamp']) && newData.child('userId').val() === auth.uid && newData.child('amount').isNumber() && newData.child('amount').val() > 0"
           }
         }
       }
@@ -31,7 +33,10 @@
     "live_chat": {
       "$auctionId": {
         ".read": true,
-        ".write": "auth != null"
+        "$msgId": {
+          ".write": "auth != null",
+          ".validate": "newData.hasChildren(['senderId','senderName','message','timestamp']) && newData.child('message').isString() && newData.child('message').val().length <= 300"
+        }
       }
     },
     "registrations": {
@@ -45,7 +50,22 @@
     "users": {
       "$userId": {
         ".read": "auth != null && auth.uid === $userId",
-        ".write": "auth != null && auth.uid === $userId"
+        ".write": "auth != null && auth.uid === $userId",
+        "role": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
+          ".validate": "newData.isString() && (newData.val() === 'participant' || newData.val() === 'house_manager' || newData.val() === 'admin')"
+        },
+        "houseId": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+        }
+      }
+    },
+    "presence": {
+      "$auctionId": {
+        ".read": true,
+        "$sessionId": {
+          ".write": true
+        }
       }
     },
     "bid_history": {
