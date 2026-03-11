@@ -7,9 +7,11 @@ import { formatPrice } from '@/lib/auction-utils';
 interface CurrentItemProps {
   item: AuctionItem;
   totalItems: number;
+  currentRound?: 1 | 2 | 3;
+  increment?: number;
 }
 
-export default function CurrentItem({ item, totalItems }: CurrentItemProps) {
+export default function CurrentItem({ item, totalItems, currentRound, increment }: CurrentItemProps) {
   const [activeImage, setActiveImage] = useState(0);
 
   const placeholderImages = [
@@ -26,6 +28,11 @@ export default function CurrentItem({ item, totalItems }: CurrentItemProps) {
           alt={item.title}
           className="w-full h-full object-cover"
         />
+        {currentRound && (
+          <div className="absolute top-3 right-3 bg-black/70 backdrop-blur-sm rounded-lg px-3 py-1.5 text-xs font-semibold text-white">
+            סיבוב {currentRound}/3{increment ? ` | קפיצה: ${formatPrice(increment)}` : ''}
+          </div>
+        )}
         {images.length > 1 && (
           <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2">
             {images.map((_, i) => (

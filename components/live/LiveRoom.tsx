@@ -10,6 +10,7 @@ import CurrentItem from './CurrentItem';
 import BidHistory from './BidHistory';
 import CatalogSidebar from './CatalogSidebar';
 import LiveChat from './LiveChat';
+import RegisterPrompt from './RegisterPrompt';
 import LiveBadge from '../ui/LiveBadge';
 import LoadingSpinner from '../ui/LoadingSpinner';
 
@@ -27,9 +28,9 @@ export default function LiveRoom() {
   // Track viewer presence
   useEffect(() => {
     if (!auctionId) return;
-    const unsub = trackViewer(auctionId);
+    const unsub = trackViewer(auctionId, user?.uid);
     return () => unsub();
-  }, [auctionId]);
+  }, [auctionId, user?.uid]);
 
   if (liveLoading || itemLoading) {
     return (
@@ -38,6 +39,9 @@ export default function LiveRoom() {
       </div>
     );
   }
+
+  const roundKey = auction ? `round${auction.currentRound}` as 'round1' | 'round2' | 'round3' : 'round1';
+  const currentIncrement = auction?.settings?.[roundKey]?.increment;
 
   if (!auctionId || !auction) {
     return (
@@ -80,7 +84,10 @@ export default function LiveRoom() {
         <div className="space-y-4">
           {item ? (
             <>
-              <CurrentItem item={item} totalItems={items.length} />
+              <CurrentItem item={item} totalItems={items.length} currentRound={auction.currentRound} increment={currentIncrement} />
+              {!registered && (
+                <RegisterPrompt auctionId={auction.id} isLoggedIn={!!user} />
+              )}
               <BidButton auction={auction} item={item} registered={registered} />
               <div className="glass rounded-xl p-4">
                 <h3 className="text-sm font-semibold text-text-secondary mb-2">היסטוריית הצעות</h3>
@@ -105,7 +112,7 @@ export default function LiveRoom() {
         {item ? (
           <div className="space-y-3 pb-24">
             {/* Car image */}
-            <CurrentItem item={item} totalItems={items.length} />
+            <CurrentItem item={item} totalItems={items.length} currentRound={auction.currentRound} increment={currentIncrement} />
 
             {/* Catalog strip - horizontal scroll */}
             <div className="px-4">

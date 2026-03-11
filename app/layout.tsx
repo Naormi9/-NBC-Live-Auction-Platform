@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: 'מרכז המכרזים הארצי | NBC',
   description: 'פלטפורמת מכרזים בלייב הראשונה בישראל. צפו, הציעו והשתתפו במכרזים חיים של ספקים ועסקים מובילים',
   manifest: '/manifest.json',
+  icons: { icon: '/favicon.svg' },
 };
 
 export default function RootLayout({

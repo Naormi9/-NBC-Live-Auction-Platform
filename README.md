@@ -54,6 +54,28 @@ import('/lib/seed-data').then(m => m.seedDatabase())
 | `/admin/auctions/new` | Create new auction |
 | `/admin/live` | Auctioneer console |
 
+## Security Model
+
+### Authentication
+- Firebase Authentication (email/password)
+- Client-side auth state via `onAuthStateChanged` in React context
+
+### Role-Based Access
+- **Roles:** `participant` (default), `house_manager`, `admin`
+- Only admins can change user roles (enforced in RTDB security rules at field level)
+- `auction_items` and `auctions` are writable only by `admin` or `house_manager`
+
+### Admin Route Protection
+Admin pages are protected by three layers:
+1. **Firebase RTDB security rules** — role-based write access prevents unauthorized data changes
+2. **Client-side auth guards** — admin pages check user role on mount and redirect if unauthorized
+3. **Cloud Function auth checks** — `advanceRoundOrItem` and `processBid` verify caller identity and role
+
+### Known Limitations
+- No server-side session cookie — middleware cannot verify Firebase Auth tokens without the admin SDK
+- Admin page HTML is technically accessible (but all data operations are server-protected)
+- For production with sensitive admin UI, consider implementing Firebase session cookies or a custom auth API route
+
 ## License
 
 ISC

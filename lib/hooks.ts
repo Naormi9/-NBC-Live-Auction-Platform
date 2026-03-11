@@ -162,9 +162,9 @@ export function useViewerCount(auctionId: string | null) {
 
   useEffect(() => {
     if (!auctionId) return;
-    const countRef = ref(db, `auctions/${auctionId}/viewerCount`);
-    const unsub = onValue(countRef, (snap) => {
-      setCount(snap.val() || 0);
+    const presenceRef = ref(db, `presence/${auctionId}`);
+    const unsub = onValue(presenceRef, (snap) => {
+      setCount(snap.exists() ? Object.keys(snap.val()).length : 0);
     });
     return () => unsub();
   }, [auctionId]);

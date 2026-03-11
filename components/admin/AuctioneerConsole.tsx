@@ -21,6 +21,7 @@ export default function AuctioneerConsole() {
   const bids = useBidHistory(auctionId, item?.id || null);
   const messages = useLiveChat(auctionId);
   const [chatMessage, setChatMessage] = useState('');
+  const [isAdvancing, setIsAdvancing] = useState(false);
   const autoAdvanceRef = useRef(false);
 
   // Auto-advance when timer expires (client-side, runs every 5s)
@@ -142,8 +143,9 @@ export default function AuctioneerConsole() {
   };
 
   const advanceToNextItem = async (markAsSold: boolean) => {
-    if (!item) return;
-
+    if (!item || isAdvancing) return;
+    setIsAdvancing(true);
+    try {
     // Close current item
     const itemUpdate: Record<string, any> = {
       status: markAsSold && item.currentBid > 0 ? 'sold' : 'unsold',
@@ -210,6 +212,9 @@ export default function AuctioneerConsole() {
         timestamp: serverTimestamp(),
       });
       toast.success('המכרז הסתיים!');
+    }
+    } finally {
+      setIsAdvancing(false);
     }
   };
 
@@ -331,21 +336,23 @@ export default function AuctioneerConsole() {
             <h2 className="text-sm font-semibold text-text-secondary">פעולות</h2>
             <div className="space-y-2">
               {auction.currentRound < 3 && (
-                <button onClick={advanceRound} className="w-full btn bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg">
+                <button onClick={advanceRound} disabled={isAdvancing} className="w-full btn bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg disabled:opacity-50">
                   ⏭ עבור לסיבוב {auction.currentRound + 1}
                 </button>
               )}
               <button
                 onClick={() => advanceToNextItem(true)}
-                className="w-full btn bg-bid-price hover:bg-bid-price/80 text-black py-3 rounded-lg font-bold"
+                disabled={isAdvancing}
+                className="w-full btn bg-bid-price hover:bg-bid-price/80 text-black py-3 rounded-lg font-bold disabled:opacity-50"
               >
-                ⏭ סיים פריט + הבא (נמכר)
+                {isAdvancing ? 'מעבד...' : '⏭ סיים פריט + הבא (נמכר)'}
               </button>
               <button
                 onClick={() => advanceToNextItem(false)}
-                className="w-full btn bg-timer-red hover:bg-timer-red/80 text-white py-3 rounded-lg"
+                disabled={isAdvancing}
+                className="w-full btn bg-timer-red hover:bg-timer-red/80 text-white py-3 rounded-lg disabled:opacity-50"
               >
-                ✗ לא נמכר → הבא
+                {isAdvancing ? 'מעבד...' : '✗ לא נמכר → הבא'}
               </button>
             </div>
           </div>
