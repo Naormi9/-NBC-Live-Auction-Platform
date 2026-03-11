@@ -3,7 +3,7 @@ import * as admin from 'firebase-admin';
 
 const db = admin.database();
 
-export const timerTick = functions.pubsub
+export const timerTick = functions.region('europe-west1').pubsub
   .schedule('every 1 minutes')
   .onRun(async () => {
     const auctionsSnap = await db.ref('/auctions')

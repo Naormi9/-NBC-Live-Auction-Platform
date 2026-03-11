@@ -11,7 +11,7 @@ import LiveBadge from '../ui/LiveBadge';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import toast from 'react-hot-toast';
 
-const fns = getFunctions();
+const fns = getFunctions(undefined, 'europe-west1');
 
 export default function AuctioneerConsole() {
   const { user, profile } = useAuth();

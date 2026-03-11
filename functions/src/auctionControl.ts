@@ -25,7 +25,7 @@ async function getLiveAuction(auctionId: string): Promise<any> {
 }
 
 // startAuctionLive
-export const startAuctionLive = functions.https.onCall(async (data, context) => {
+export const startAuctionLive = functions.region('europe-west1').https.onCall(async (data, context) => {
   await verifyAdminRole(context);
   const { auctionId } = data;
   if (!auctionId) throw new functions.https.HttpsError('invalid-argument', 'Missing auctionId');
@@ -86,7 +86,7 @@ export const startAuctionLive = functions.https.onCall(async (data, context) => 
 });
 
 // activateFirstItem
-export const activateFirstItem = functions.https.onCall(async (data, context) => {
+export const activateFirstItem = functions.region('europe-west1').https.onCall(async (data, context) => {
   await verifyAdminRole(context);
   const { auctionId } = data;
   if (!auctionId) throw new functions.https.HttpsError('invalid-argument', 'Missing auctionId');
@@ -133,7 +133,7 @@ export const activateFirstItem = functions.https.onCall(async (data, context) =>
 });
 
 // advanceAuctionRound
-export const advanceAuctionRound = functions.https.onCall(async (data, context) => {
+export const advanceAuctionRound = functions.region('europe-west1').https.onCall(async (data, context) => {
   await verifyAdminRole(context);
   const { auctionId } = data;
   if (!auctionId) throw new functions.https.HttpsError('invalid-argument', 'Missing auctionId');
@@ -163,7 +163,7 @@ export const advanceAuctionRound = functions.https.onCall(async (data, context) 
 });
 
 // closeItemAndAdvance
-export const closeItemAndAdvance = functions.https.onCall(async (data, context) => {
+export const closeItemAndAdvance = functions.region('europe-west1').https.onCall(async (data, context) => {
   await verifyAdminRole(context);
   const { auctionId, markAsSold } = data;
   if (!auctionId) throw new functions.https.HttpsError('invalid-argument', 'Missing auctionId');
@@ -244,7 +244,7 @@ export const closeItemAndAdvance = functions.https.onCall(async (data, context) 
 });
 
 // adjustAuctionTimer
-export const adjustAuctionTimer = functions.https.onCall(async (data, context) => {
+export const adjustAuctionTimer = functions.region('europe-west1').https.onCall(async (data, context) => {
   await verifyAdminRole(context);
   const { auctionId, action, seconds } = data;
   if (!auctionId) throw new functions.https.HttpsError('invalid-argument', 'Missing auctionId');
@@ -268,7 +268,7 @@ export const adjustAuctionTimer = functions.https.onCall(async (data, context) =
 });
 
 // endAuction
-export const endAuction = functions.https.onCall(async (data, context) => {
+export const endAuction = functions.region('europe-west1').https.onCall(async (data, context) => {
   await verifyAdminRole(context);
   const { auctionId } = data;
   if (!auctionId) throw new functions.https.HttpsError('invalid-argument', 'Missing auctionId');
