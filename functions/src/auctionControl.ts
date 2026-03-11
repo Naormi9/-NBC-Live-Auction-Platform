@@ -20,213 +20,61 @@ function mergeSettings(settings: any) {
   };
 }
 
-// Helper: verify caller is admin or house_manager
-async function verifyAdminRole(context: functions.https.CallableContext): Promise<void> {
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+// ─── CORS + Auth helpers ────────────────────────────────────
+function setCors(res: functions.Response) {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.set('Access-Control-Max-Age', '3600');
+}
+
+function handlePreflight(req: functions.Request, res: functions.Response): boolean {
+  setCors(res);
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return true;
   }
-  const snap = await db.ref(`/users/${context.auth.uid}/role`).once('value');
+  return false;
+}
+
+async function verifyAuth(req: functions.Request): Promise<admin.auth.DecodedIdToken> {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) {
+    throw new Error('Missing or invalid Authorization header');
+  }
+  const token = authHeader.split('Bearer ')[1];
+  return admin.auth().verifyIdToken(token);
+}
+
+async function verifyAdminRole(uid: string): Promise<void> {
+  const snap = await db.ref(`/users/${uid}/role`).once('value');
   const role = snap.val();
   if (role !== 'admin' && role !== 'house_manager') {
-    throw new functions.https.HttpsError('permission-denied', 'Admin or house_manager required');
+    throw new Error('Admin or house_manager role required');
   }
 }
 
-// Helper: get live auction (throws if not found or not live)
+function sendError(res: functions.Response, code: number, message: string) {
+  setCors(res);
+  res.status(code).json({ error: message });
+}
+
+function sendOk(res: functions.Response, data: any) {
+  setCors(res);
+  res.status(200).json(data);
+}
+
+// ─── Shared helpers ─────────────────────────────────────────
+
 async function getLiveAuction(auctionId: string): Promise<any> {
   const snap = await db.ref(`/auctions/${auctionId}`).once('value');
   const auction = snap.val();
-  if (!auction) throw new functions.https.HttpsError('not-found', 'Auction not found');
-  if (auction.status !== 'live') throw new functions.https.HttpsError('failed-precondition', 'Auction is not live');
+  if (!auction) throw new Error('Auction not found');
+  if (auction.status !== 'live') throw new Error('Auction is not live');
   auction.settings = mergeSettings(auction.settings);
   return auction;
 }
 
-// startAuctionLive
-export const startAuctionLive = functions.region('europe-west1').https.onCall(async (data, context) => {
-  await verifyAdminRole(context);
-  const { auctionId } = data;
-  if (!auctionId) throw new functions.https.HttpsError('invalid-argument', 'Missing auctionId');
-
-  const auctionRef = db.ref(`/auctions/${auctionId}`);
-  const auctionSnap = await auctionRef.once('value');
-  const auction = auctionSnap.val();
-  if (!auction) throw new functions.https.HttpsError('not-found', 'Auction not found');
-
-  if (auction.status === 'live') return { action: 'already_live', auctionId };
-
-  if (auction.status !== 'published' && auction.status !== 'draft') {
-    throw new functions.https.HttpsError('failed-precondition', `Cannot start auction in status: ${auction.status}`);
-  }
-
-  const liveCheck = await db.ref('/auctions').orderByChild('status').equalTo('live').once('value');
-  if (liveCheck.exists()) {
-    throw new functions.https.HttpsError('failed-precondition', 'Another auction is already live');
-  }
-
-  const itemsSnap = await db.ref('/auction_items')
-    .orderByChild('auctionId').equalTo(auctionId).once('value');
-  if (!itemsSnap.exists()) {
-    throw new functions.https.HttpsError('failed-precondition', 'Auction has no items');
-  }
-
-  const settings = mergeSettings(auction.settings);
-
-  const items = Object.entries(itemsSnap.val())
-    .map(([id, d]: [string, any]) => ({ id, ...d }))
-    .sort((a: any, b: any) => a.order - b.order);
-
-  const firstItem = items[0] as any;
-  const now = Date.now();
-
-  await db.ref(`/auction_items/${firstItem.id}`).update({
-    status: 'active',
-    currentBid: firstItem.preBidPrice || firstItem.openingPrice || 0,
-    currentBidderId: null,
-    currentBidderName: null,
-  });
-
-  await auctionRef.update({
-    status: 'live',
-    currentItemId: firstItem.id,
-    currentRound: 1,
-    round1Resets: 0,
-    itemStartedAt: now,
-    timerEndsAt: now + settings.round1.timerSeconds * 1000,
-    timerDuration: settings.round1.timerSeconds,
-    settings,
-  });
-
-  await db.ref(`/live_chat/${auctionId}`).push({
-    senderId: 'system',
-    senderName: 'מערכת',
-    senderRole: 'system',
-    message: `המכרז התחיל! הפריט הראשון: "${firstItem.title}"`,
-    timestamp: admin.database.ServerValue.TIMESTAMP,
-  });
-
-  return { action: 'started', auctionId, firstItemId: firstItem.id };
-});
-
-// activateFirstItem
-export const activateFirstItem = functions.region('europe-west1').https.onCall(async (data, context) => {
-  await verifyAdminRole(context);
-  const { auctionId } = data;
-  if (!auctionId) throw new functions.https.HttpsError('invalid-argument', 'Missing auctionId');
-
-  const auction = await getLiveAuction(auctionId);
-
-  const itemsSnap = await db.ref('/auction_items')
-    .orderByChild('auctionId').equalTo(auctionId).once('value');
-  if (!itemsSnap.exists()) throw new functions.https.HttpsError('not-found', 'No items found');
-
-  const pendingItems = Object.entries(itemsSnap.val())
-    .map(([id, d]: [string, any]) => ({ id, ...d }))
-    .filter((i: any) => i.status === 'pending')
-    .sort((a: any, b: any) => a.order - b.order);
-
-  if (pendingItems.length === 0) {
-    throw new functions.https.HttpsError('failed-precondition', 'No pending items');
-  }
-
-  const firstItem = pendingItems[0] as any;
-  const now = Date.now();
-
-  await db.ref(`/auction_items/${firstItem.id}`).update({
-    status: 'active',
-    currentBid: firstItem.preBidPrice || firstItem.openingPrice || 0,
-  });
-
-  await db.ref(`/auctions/${auctionId}`).update({
-    currentItemId: firstItem.id,
-    currentRound: 1,
-    round1Resets: 0,
-    itemStartedAt: now,
-    timerEndsAt: now + auction.settings.round1.timerSeconds * 1000,
-    timerDuration: auction.settings.round1.timerSeconds,
-  });
-
-  await db.ref(`/live_chat/${auctionId}`).push({
-    senderId: 'system',
-    senderName: 'מערכת',
-    senderRole: 'system',
-    message: `הפריט "${firstItem.title}" עלה לבמה!`,
-    timestamp: admin.database.ServerValue.TIMESTAMP,
-  });
-
-  return { action: 'activated', itemId: firstItem.id };
-});
-
-// advanceAuctionRound
-export const advanceAuctionRound = functions.region('europe-west1').https.onCall(async (data, context) => {
-  await verifyAdminRole(context);
-  const { auctionId } = data;
-  if (!auctionId) throw new functions.https.HttpsError('invalid-argument', 'Missing auctionId');
-
-  const auction = await getLiveAuction(auctionId);
-  if (auction.currentRound >= 3) return { action: 'already_at_round_3' };
-
-  const nextRound = (auction.currentRound + 1) as 2 | 3;
-  const roundKey = `round${nextRound}` as 'round2' | 'round3';
-  const now = Date.now();
-
-  await db.ref(`/auctions/${auctionId}`).update({
-    currentRound: nextRound,
-    timerEndsAt: now + auction.settings[roundKey].timerSeconds * 1000,
-    timerDuration: auction.settings[roundKey].timerSeconds,
-  });
-
-  await db.ref(`/live_chat/${auctionId}`).push({
-    senderId: 'system',
-    senderName: 'מערכת',
-    senderRole: 'system',
-    message: `עוברים לסיבוב ${nextRound} — מדרגת קפיצה: ₪${auction.settings[roundKey].increment.toLocaleString()}`,
-    timestamp: admin.database.ServerValue.TIMESTAMP,
-  });
-
-  return { action: 'advanced_round', round: nextRound };
-});
-
-// closeItemAndAdvance
-export const closeItemAndAdvance = functions.region('europe-west1').https.onCall(async (data, context) => {
-  await verifyAdminRole(context);
-  const { auctionId, markAsSold } = data;
-  if (!auctionId) throw new functions.https.HttpsError('invalid-argument', 'Missing auctionId');
-
-  const auction = await getLiveAuction(auctionId);
-  const currentItemId = auction.currentItemId;
-  if (!currentItemId) return { action: 'no_current_item' };
-
-  const itemRef = db.ref(`/auction_items/${currentItemId}`);
-  const itemSnap = await itemRef.once('value');
-  const item = itemSnap.val();
-  if (!item) throw new functions.https.HttpsError('not-found', 'Current item not found');
-
-  if (item.status !== 'sold' && item.status !== 'unsold') {
-    const isSold = !!markAsSold && item.currentBid > 0;
-    const itemUpdate: Record<string, any> = { status: isSold ? 'sold' : 'unsold' };
-    if (isSold) {
-      itemUpdate.soldAt = admin.database.ServerValue.TIMESTAMP;
-      itemUpdate.soldPrice = item.currentBid;
-    }
-    await itemRef.update(itemUpdate);
-
-    await db.ref(`/live_chat/${auctionId}`).push({
-      senderId: 'system',
-      senderName: 'מערכת',
-      senderRole: 'system',
-      message: isSold
-        ? `הפריט "${item.title}" נמכר ב-₪${item.currentBid.toLocaleString()} ל-${item.currentBidderName}!`
-        : `הפריט "${item.title}" לא נמכר.`,
-      timestamp: admin.database.ServerValue.TIMESTAMP,
-    });
-  }
-
-  // Advance to next item
-  return await advanceToNextItem(auctionId, auction.settings);
-});
-
-// Shared helper: advance to next pending item or end auction
 async function advanceToNextItem(auctionId: string, settings: any) {
   const allItemsSnap = await db.ref('/auction_items')
     .orderByChild('auctionId').equalTo(auctionId).once('value');
@@ -241,9 +89,7 @@ async function advanceToNextItem(auctionId: string, settings: any) {
   if (pendingItems.length === 0) {
     await db.ref(`/auctions/${auctionId}`).update({ status: 'ended', currentItemId: null });
     await db.ref(`/live_chat/${auctionId}`).push({
-      senderId: 'system',
-      senderName: 'מערכת',
-      senderRole: 'system',
+      senderId: 'system', senderName: 'מערכת', senderRole: 'system',
       message: 'המכרז הסתיים! תודה לכל המשתתפים.',
       timestamp: admin.database.ServerValue.TIMESTAMP,
     });
@@ -266,9 +112,7 @@ async function advanceToNextItem(auctionId: string, settings: any) {
     timerDuration: settings.round1.timerSeconds,
   });
   await db.ref(`/live_chat/${auctionId}`).push({
-    senderId: 'system',
-    senderName: 'מערכת',
-    senderRole: 'system',
+    senderId: 'system', senderName: 'מערכת', senderRole: 'system',
     message: `הפריט "${nextItem.title}" עלה לבמה!`,
     timestamp: admin.database.ServerValue.TIMESTAMP,
   });
@@ -276,46 +120,254 @@ async function advanceToNextItem(auctionId: string, settings: any) {
   return { action: 'advanced_to_next', nextItemId: nextItem.id };
 }
 
-// adjustAuctionTimer
-export const adjustAuctionTimer = functions.region('europe-west1').https.onCall(async (data, context) => {
-  await verifyAdminRole(context);
-  const { auctionId, action, seconds } = data;
-  if (!auctionId) throw new functions.https.HttpsError('invalid-argument', 'Missing auctionId');
+// ═══════════════════════════════════════════════════════════════
+// CLOUD FUNCTIONS (onRequest with CORS)
+// ═══════════════════════════════════════════════════════════════
 
-  const auction = await getLiveAuction(auctionId);
-  const now = Date.now();
+export const startAuctionLive = functions.region('europe-west1').https.onRequest(async (req, res) => {
+  if (handlePreflight(req, res)) return;
+  try {
+    const decoded = await verifyAuth(req);
+    await verifyAdminRole(decoded.uid);
 
-  if (action === 'pause') {
-    await db.ref(`/auctions/${auctionId}`).update({ timerEndsAt: now + 999999000 });
-    return { action: 'paused' };
+    const { auctionId } = req.body;
+    if (!auctionId) return sendError(res, 400, 'Missing auctionId');
+
+    const auctionRef = db.ref(`/auctions/${auctionId}`);
+    const auctionSnap = await auctionRef.once('value');
+    const auction = auctionSnap.val();
+    if (!auction) return sendError(res, 404, 'Auction not found');
+
+    if (auction.status === 'live') return sendOk(res, { action: 'already_live', auctionId });
+
+    if (auction.status !== 'published' && auction.status !== 'draft') {
+      return sendError(res, 400, `Cannot start auction in status: ${auction.status}`);
+    }
+
+    // Check no other live auction
+    const liveCheck = await db.ref('/auctions').orderByChild('status').equalTo('live').once('value');
+    if (liveCheck.exists()) return sendError(res, 400, 'Another auction is already live');
+
+    const itemsSnap = await db.ref('/auction_items')
+      .orderByChild('auctionId').equalTo(auctionId).once('value');
+    if (!itemsSnap.exists()) return sendError(res, 400, 'Auction has no items');
+
+    const settings = mergeSettings(auction.settings);
+    const items = Object.entries(itemsSnap.val())
+      .map(([id, d]: [string, any]) => ({ id, ...d }))
+      .sort((a: any, b: any) => a.order - b.order);
+
+    const firstItem = items[0] as any;
+    const now = Date.now();
+
+    await db.ref(`/auction_items/${firstItem.id}`).update({
+      status: 'active',
+      currentBid: firstItem.preBidPrice || firstItem.openingPrice || 0,
+      currentBidderId: null,
+      currentBidderName: null,
+    });
+
+    await auctionRef.update({
+      status: 'live',
+      currentItemId: firstItem.id,
+      currentRound: 1,
+      round1Resets: 0,
+      itemStartedAt: now,
+      timerEndsAt: now + settings.round1.timerSeconds * 1000,
+      timerDuration: settings.round1.timerSeconds,
+      settings,
+    });
+
+    await db.ref(`/live_chat/${auctionId}`).push({
+      senderId: 'system', senderName: 'מערכת', senderRole: 'system',
+      message: `המכרז התחיל! הפריט הראשון: "${firstItem.title}"`,
+      timestamp: admin.database.ServerValue.TIMESTAMP,
+    });
+
+    return sendOk(res, { action: 'started', auctionId, firstItemId: firstItem.id });
+  } catch (err: any) {
+    return sendError(res, 500, err.message || 'Internal error');
   }
-
-  if (action === 'add' && typeof seconds === 'number' && seconds > 0) {
-    const currentEnd = auction.timerEndsAt || now;
-    const newEnd = Math.max(currentEnd, now) + seconds * 1000;
-    await db.ref(`/auctions/${auctionId}`).update({ timerEndsAt: newEnd });
-    return { action: 'added', seconds };
-  }
-
-  throw new functions.https.HttpsError('invalid-argument', 'Invalid action or seconds');
 });
 
-// endAuction
-export const endAuction = functions.region('europe-west1').https.onCall(async (data, context) => {
-  await verifyAdminRole(context);
-  const { auctionId } = data;
-  if (!auctionId) throw new functions.https.HttpsError('invalid-argument', 'Missing auctionId');
+export const activateFirstItem = functions.region('europe-west1').https.onRequest(async (req, res) => {
+  if (handlePreflight(req, res)) return;
+  try {
+    const decoded = await verifyAuth(req);
+    await verifyAdminRole(decoded.uid);
 
-  await getLiveAuction(auctionId);
+    const { auctionId } = req.body;
+    if (!auctionId) return sendError(res, 400, 'Missing auctionId');
 
-  await db.ref(`/auctions/${auctionId}`).update({ status: 'ended', currentItemId: null });
-  await db.ref(`/live_chat/${auctionId}`).push({
-    senderId: 'system',
-    senderName: 'מערכת',
-    senderRole: 'system',
-    message: 'המכרז הסתיים על ידי הכרוז.',
-    timestamp: admin.database.ServerValue.TIMESTAMP,
-  });
+    const auction = await getLiveAuction(auctionId);
 
-  return { action: 'ended' };
+    const itemsSnap = await db.ref('/auction_items')
+      .orderByChild('auctionId').equalTo(auctionId).once('value');
+    if (!itemsSnap.exists()) return sendError(res, 404, 'No items found');
+
+    const pendingItems = Object.entries(itemsSnap.val())
+      .map(([id, d]: [string, any]) => ({ id, ...d }))
+      .filter((i: any) => i.status === 'pending')
+      .sort((a: any, b: any) => a.order - b.order);
+
+    if (pendingItems.length === 0) return sendError(res, 400, 'No pending items');
+
+    const firstItem = pendingItems[0] as any;
+    const now = Date.now();
+
+    await db.ref(`/auction_items/${firstItem.id}`).update({
+      status: 'active',
+      currentBid: firstItem.preBidPrice || firstItem.openingPrice || 0,
+    });
+
+    await db.ref(`/auctions/${auctionId}`).update({
+      currentItemId: firstItem.id,
+      currentRound: 1,
+      round1Resets: 0,
+      itemStartedAt: now,
+      timerEndsAt: now + auction.settings.round1.timerSeconds * 1000,
+      timerDuration: auction.settings.round1.timerSeconds,
+    });
+
+    await db.ref(`/live_chat/${auctionId}`).push({
+      senderId: 'system', senderName: 'מערכת', senderRole: 'system',
+      message: `הפריט "${firstItem.title}" עלה לבמה!`,
+      timestamp: admin.database.ServerValue.TIMESTAMP,
+    });
+
+    return sendOk(res, { action: 'activated', itemId: firstItem.id });
+  } catch (err: any) {
+    return sendError(res, 500, err.message || 'Internal error');
+  }
+});
+
+export const advanceAuctionRound = functions.region('europe-west1').https.onRequest(async (req, res) => {
+  if (handlePreflight(req, res)) return;
+  try {
+    const decoded = await verifyAuth(req);
+    await verifyAdminRole(decoded.uid);
+
+    const { auctionId } = req.body;
+    if (!auctionId) return sendError(res, 400, 'Missing auctionId');
+
+    const auction = await getLiveAuction(auctionId);
+    if (auction.currentRound >= 3) return sendOk(res, { action: 'already_at_round_3' });
+
+    const nextRound = (auction.currentRound + 1) as 2 | 3;
+    const roundKey = `round${nextRound}` as 'round2' | 'round3';
+    const now = Date.now();
+
+    await db.ref(`/auctions/${auctionId}`).update({
+      currentRound: nextRound,
+      timerEndsAt: now + auction.settings[roundKey].timerSeconds * 1000,
+      timerDuration: auction.settings[roundKey].timerSeconds,
+    });
+
+    await db.ref(`/live_chat/${auctionId}`).push({
+      senderId: 'system', senderName: 'מערכת', senderRole: 'system',
+      message: `עוברים לסיבוב ${nextRound} — מדרגת קפיצה: ₪${auction.settings[roundKey].increment.toLocaleString()}`,
+      timestamp: admin.database.ServerValue.TIMESTAMP,
+    });
+
+    return sendOk(res, { action: 'advanced_round', round: nextRound });
+  } catch (err: any) {
+    return sendError(res, 500, err.message || 'Internal error');
+  }
+});
+
+export const closeItemAndAdvance = functions.region('europe-west1').https.onRequest(async (req, res) => {
+  if (handlePreflight(req, res)) return;
+  try {
+    const decoded = await verifyAuth(req);
+    await verifyAdminRole(decoded.uid);
+
+    const { auctionId, markAsSold } = req.body;
+    if (!auctionId) return sendError(res, 400, 'Missing auctionId');
+
+    const auction = await getLiveAuction(auctionId);
+    const currentItemId = auction.currentItemId;
+    if (!currentItemId) return sendOk(res, { action: 'no_current_item' });
+
+    const itemRef = db.ref(`/auction_items/${currentItemId}`);
+    const itemSnap = await itemRef.once('value');
+    const item = itemSnap.val();
+    if (!item) return sendError(res, 404, 'Current item not found');
+
+    if (item.status !== 'sold' && item.status !== 'unsold') {
+      const isSold = !!markAsSold && item.currentBid > 0;
+      const itemUpdate: Record<string, any> = { status: isSold ? 'sold' : 'unsold' };
+      if (isSold) {
+        itemUpdate.soldAt = admin.database.ServerValue.TIMESTAMP;
+        itemUpdate.soldPrice = item.currentBid;
+      }
+      await itemRef.update(itemUpdate);
+
+      await db.ref(`/live_chat/${auctionId}`).push({
+        senderId: 'system', senderName: 'מערכת', senderRole: 'system',
+        message: isSold
+          ? `הפריט "${item.title}" נמכר ב-₪${item.currentBid.toLocaleString()} ל-${item.currentBidderName}!`
+          : `הפריט "${item.title}" לא נמכר.`,
+        timestamp: admin.database.ServerValue.TIMESTAMP,
+      });
+    }
+
+    const result = await advanceToNextItem(auctionId, auction.settings);
+    return sendOk(res, result);
+  } catch (err: any) {
+    return sendError(res, 500, err.message || 'Internal error');
+  }
+});
+
+export const adjustAuctionTimer = functions.region('europe-west1').https.onRequest(async (req, res) => {
+  if (handlePreflight(req, res)) return;
+  try {
+    const decoded = await verifyAuth(req);
+    await verifyAdminRole(decoded.uid);
+
+    const { auctionId, action, seconds } = req.body;
+    if (!auctionId) return sendError(res, 400, 'Missing auctionId');
+
+    const auction = await getLiveAuction(auctionId);
+    const now = Date.now();
+
+    if (action === 'pause') {
+      await db.ref(`/auctions/${auctionId}`).update({ timerEndsAt: now + 999999000 });
+      return sendOk(res, { action: 'paused' });
+    }
+
+    if (action === 'add' && typeof seconds === 'number' && seconds > 0) {
+      const currentEnd = auction.timerEndsAt || now;
+      const newEnd = Math.max(currentEnd, now) + seconds * 1000;
+      await db.ref(`/auctions/${auctionId}`).update({ timerEndsAt: newEnd });
+      return sendOk(res, { action: 'added', seconds });
+    }
+
+    return sendError(res, 400, 'Invalid action or seconds');
+  } catch (err: any) {
+    return sendError(res, 500, err.message || 'Internal error');
+  }
+});
+
+export const endAuction = functions.region('europe-west1').https.onRequest(async (req, res) => {
+  if (handlePreflight(req, res)) return;
+  try {
+    const decoded = await verifyAuth(req);
+    await verifyAdminRole(decoded.uid);
+
+    const { auctionId } = req.body;
+    if (!auctionId) return sendError(res, 400, 'Missing auctionId');
+
+    await getLiveAuction(auctionId);
+
+    await db.ref(`/auctions/${auctionId}`).update({ status: 'ended', currentItemId: null });
+    await db.ref(`/live_chat/${auctionId}`).push({
+      senderId: 'system', senderName: 'מערכת', senderRole: 'system',
+      message: 'המכרז הסתיים על ידי הכרוז.',
+      timestamp: admin.database.ServerValue.TIMESTAMP,
+    });
+
+    return sendOk(res, { action: 'ended' });
+  } catch (err: any) {
+    return sendError(res, 500, err.message || 'Internal error');
+  }
 });

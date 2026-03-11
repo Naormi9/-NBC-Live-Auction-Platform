@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { callFunction } from '@/lib/api';
 import { useAllAuctions } from '@/lib/hooks';
 import Navbar from '@/components/ui/Navbar';
 import { AuctionStatusBadge } from '@/components/ui/StatusBadge';
@@ -13,8 +13,7 @@ export default function AdminAuctionsPage() {
 
   const goLive = async (auctionId: string) => {
     try {
-      const fn = httpsCallable(getFunctions(undefined, 'europe-west1'), 'startAuctionLive');
-      await fn({ auctionId });
+      await callFunction('startAuctionLive', { auctionId });
       toast.success('המכרז עלה לאוויר!');
     } catch (err: any) {
       toast.error(err.message || 'שגיאה בהפעלת המכרז');
@@ -49,10 +48,20 @@ export default function AdminAuctionsPage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  {auction.status === 'published' && (
+                  {(auction.status === 'published' || auction.status === 'draft') && (
                     <button onClick={() => goLive(auction.id)} className="bg-live-dot text-white px-3 py-1.5 rounded-lg text-sm font-semibold">
                       הפעל לייב
                     </button>
+                  )}
+                  {auction.status === 'live' && (
+                    <Link href="/admin/live" className="bg-live-dot text-white px-3 py-1.5 rounded-lg text-sm font-semibold animate-pulse">
+                      פאנל כרוז
+                    </Link>
+                  )}
+                  {auction.status === 'ended' && (
+                    <Link href={`/auctions/${auction.id}/results`} className="btn-dark px-3 py-1.5 rounded-lg text-sm">
+                      תוצאות
+                    </Link>
                   )}
                   <Link href={`/admin/auctions/${auction.id}`} className="btn-dark px-3 py-1.5 rounded-lg text-sm">
                     ערוך

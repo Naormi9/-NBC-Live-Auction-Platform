@@ -59,20 +59,38 @@ export default function AuctionCatalogPage() {
     toast.success('נרשמת למכרז בהצלחה!');
   };
 
-  const handlePreBid = async (itemId: string, openingPrice: number) => {
-    if (!user || !preBidAmount) return;
+  const handlePreBid = async (itemId: string, item: any) => {
+    if (!user || !preBidAmount || !auction) return;
     const amount = parseInt(preBidAmount);
+    const openingPrice = item.openingPrice || 0;
+    // Pre-bid increment from auction settings (default ₪500)
+    const preBidIncrement = (auction.settings as any)?.preBidIncrement || auction.settings?.round1?.increment || 500;
+
     if (isNaN(amount) || amount <= 0) {
       toast.error('הכנס סכום תקין');
       return;
     }
-    if (amount <= openingPrice) {
-      toast.error(`הצעה חייבת להיות גבוהה ממחיר הפתיחה (${formatPrice(openingPrice)})`);
+    // Must be at least the opening price
+    if (amount < openingPrice) {
+      toast.error(`הצעה חייבת להיות לפחות מחיר הפתיחה (${formatPrice(openingPrice)})`);
       return;
     }
+    // Must be aligned to increment steps from opening price
+    if ((amount - openingPrice) % preBidIncrement !== 0) {
+      toast.error(`הצעה חייבת להיות בקפיצות של ${formatPrice(preBidIncrement)} ממחיר הפתיחה`);
+      return;
+    }
+    // Can't outbid yourself - check if this user is already the highest bidder
+    const currentPreBidPrice = item.preBidPrice || 0;
     const existingBid = userPreBids[itemId];
-    if (existingBid && amount <= existingBid) {
-      toast.error(`הצעה חדשה חייבת להיות גבוהה מההצעה הקיימת שלך (${formatPrice(existingBid)})`);
+    if (existingBid && existingBid >= currentPreBidPrice && currentPreBidPrice > 0) {
+      // User is the highest bidder - can only bid if someone else outbid them
+      toast.error('אינך יכול להקפיץ מעל עצמך. המתן עד שמישהו אחר יציע');
+      return;
+    }
+    // New bid must be higher than current max pre-bid
+    if (amount <= currentPreBidPrice) {
+      toast.error(`הצעה חייבת להיות גבוהה מההצעה הנוכחית (${formatPrice(currentPreBidPrice)})`);
       return;
     }
     await set(ref(db, `pre_bids/${auctionId}/${itemId}/${user.uid}`), {
@@ -158,6 +176,14 @@ export default function AuctionCatalogPage() {
                   <span className="font-bold text-bid-price">{formatPrice(item.openingPrice)}</span>
                 </div>
 
+                {/* Highest pre-bid (anonymous per spec) */}
+                {item.preBidPrice && item.preBidPrice > item.openingPrice && (
+                  <div className="flex items-center justify-between text-sm bg-bid-price/10 border border-bid-price/20 rounded-lg px-3 py-2">
+                    <span className="text-text-secondary">הצעה מוקדמת גבוהה</span>
+                    <span className="font-bold text-bid-price">{formatPrice(item.preBidPrice)}</span>
+                  </div>
+                )}
+
                 {/* Show user's existing pre-bid */}
                 {userPreBids[item.id] && (
                   <div className="flex items-center justify-between text-sm bg-accent/10 border border-accent/20 rounded-lg px-3 py-2">
@@ -167,6 +193,7 @@ export default function AuctionCatalogPage() {
                 )}
 
                 {/* Pre-bid button */}
+                {/* Pre-bid: available for pending items if preBids enabled, even during live per spec */}
                 {auction.preBidsEnabled && registered && item.status === 'pending' && (
                   <>
                     {preBidItem === item.id ? (
@@ -180,7 +207,7 @@ export default function AuctionCatalogPage() {
                           dir="ltr"
                         />
                         <button
-                          onClick={() => handlePreBid(item.id, item.openingPrice)}
+                          onClick={() => handlePreBid(item.id, item)}
                           className="btn-accent px-3 py-2 rounded-lg text-sm"
                         >
                           שלח
