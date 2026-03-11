@@ -1,3 +1,5 @@
+// DEPRECATED — use auctionControl.ts functions instead
+// This file is kept for reference only. It is no longer exported from index.ts.
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 
