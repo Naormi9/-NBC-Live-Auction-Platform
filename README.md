@@ -41,7 +41,6 @@ import('/lib/seed-data').then(m => m.seedDatabase())
 - **Backend:** Firebase Realtime Database, Firebase Auth, Firebase Storage
 - **Cloud Functions:**
   - `processBid` — transaction-based bid processing
-  - `advanceRoundOrItem` — legacy callable for round/item advancement
   - `timerTick` — Cloud Scheduler (every 1 min) for server-authoritative timer progression
   - `onPreBidCreated` — pre-bid aggregator
   - `startAuctionLive` — transitions auction from published/draft → live
@@ -77,7 +76,7 @@ This platform uses a server-authoritative architecture for all critical auction 
 - Only admins can change user roles via Firebase Console or admin tools
 
 ### Auction State Transitions (Server Only)
-All critical auction mutations run through Firebase Cloud Functions:
+All critical **live auction** mutations run through Firebase Cloud Functions:
 - `startAuctionLive` — transitions auction from published → live, activates first item
 - `activateFirstItem` — activates first pending item in a live auction
 - `advanceAuctionRound` — advances current round (1→2→3)
@@ -87,6 +86,10 @@ All critical auction mutations run through Firebase Cloud Functions:
 
 All functions verify authentication and admin/house_manager role before executing.
 Operations are idempotent — safe to retry without corrupting state.
+
+**Note:** Auction and item *creation/editing* (new auction form, seed data) still writes directly to `auctions/*` and `auction_items/*` from the client. These writes are protected by RTDB rules requiring admin/house_manager role. Only live-state transitions are server-only via Cloud Functions.
+
+The legacy `advanceRoundOrItem` Cloud Function has been deprecated and removed from exports. The source file (`advanceItem.ts`) is retained for reference only.
 
 ### Timer Correctness
 - `timerTick` Cloud Function runs every 1 minute via Cloud Scheduler
@@ -105,9 +108,16 @@ Operations are idempotent — safe to retry without corrupting state.
 2. In Firebase Console → Realtime Database → users → {your uid} → set `role` to `"admin"` manually
 3. This is intentional — first admin must be set by someone with Firebase Console access
 
+### Admin Route Protection
+- All admin pages are wrapped by a shared layout (`app/(admin)/admin/layout.tsx`) that checks authentication and role
+- Unauthenticated users are redirected to `/login`; non-admin authenticated users are redirected to `/`
+- A loading spinner is shown while auth state resolves to prevent unauthorized content flash
+- This is **client-side only** — there is no server-side session cookie or middleware-level route protection
+- All data mutations are independently protected by Cloud Functions auth checks and RTDB security rules
+
 ### Known Limitations
-- No server-side session cookie — middleware is pass-through
-- Admin page HTML may be technically reachable without auth, but all data operations and state mutations are server-protected via Cloud Functions and RTDB rules
+- No server-side session cookie — middleware is pass-through; admin HTML is technically reachable but all data operations and state mutations are server-protected
+- Auction/item creation still uses direct client RTDB writes (protected by role-based rules, not Cloud Functions)
 - Firebase scheduler minimum granularity is 1 minute — auctioneer can manually advance rounds/items for sub-minute responsiveness
 
 ## License
