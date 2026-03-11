@@ -1,0 +1,56 @@
+{
+  "rules": {
+    "pending_bids": {
+      "$bidId": {
+        ".write": "auth != null",
+        ".validate": "newData.hasChildren(['auctionId','itemId','userId','amount','timestamp']) && newData.child('userId').val() === auth.uid && newData.child('amount').isNumber() && newData.child('amount').val() > 0"
+      }
+    },
+    "auction_items": {
+      ".read": true,
+      "$itemId": {
+        ".write": "false"
+      }
+    },
+    "auctions": {
+      ".read": true,
+      "$auctionId": {
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager')"
+      }
+    },
+    "pre_bids": {
+      "$auctionId": {
+        "$itemId": {
+          "$userId": {
+            ".read": "auth != null && auth.uid === $userId",
+            ".write": "auth != null && auth.uid === $userId"
+          }
+        }
+      }
+    },
+    "live_chat": {
+      "$auctionId": {
+        ".read": true,
+        ".write": "auth != null"
+      }
+    },
+    "registrations": {
+      "$auctionId": {
+        "$userId": {
+          ".read": "auth != null && auth.uid === $userId",
+          ".write": "auth != null && auth.uid === $userId"
+        }
+      }
+    },
+    "users": {
+      "$userId": {
+        ".read": "auth != null && auth.uid === $userId",
+        ".write": "auth != null && auth.uid === $userId"
+      }
+    },
+    "bid_history": {
+      ".read": true,
+      ".write": false
+    }
+  }
+}
