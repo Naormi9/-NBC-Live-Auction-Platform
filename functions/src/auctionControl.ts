@@ -3,6 +3,23 @@ import * as admin from 'firebase-admin';
 
 const db = admin.database();
 
+// Default settings fallback
+const DEFAULT_SETTINGS = {
+  round1: { increment: 1000, timerSeconds: 45 },
+  round2: { increment: 500, timerSeconds: 30 },
+  round3: { increment: 250, timerSeconds: 30 },
+  hardCloseMinutes: 30,
+};
+
+function mergeSettings(settings: any) {
+  return {
+    round1: { ...DEFAULT_SETTINGS.round1, ...(settings?.round1 || {}) },
+    round2: { ...DEFAULT_SETTINGS.round2, ...(settings?.round2 || {}) },
+    round3: { ...DEFAULT_SETTINGS.round3, ...(settings?.round3 || {}) },
+    hardCloseMinutes: settings?.hardCloseMinutes ?? DEFAULT_SETTINGS.hardCloseMinutes,
+  };
+}
+
 // Helper: verify caller is admin or house_manager
 async function verifyAdminRole(context: functions.https.CallableContext): Promise<void> {
   if (!context.auth) {
@@ -21,6 +38,7 @@ async function getLiveAuction(auctionId: string): Promise<any> {
   const auction = snap.val();
   if (!auction) throw new functions.https.HttpsError('not-found', 'Auction not found');
   if (auction.status !== 'live') throw new functions.https.HttpsError('failed-precondition', 'Auction is not live');
+  auction.settings = mergeSettings(auction.settings);
   return auction;
 }
 
@@ -52,6 +70,8 @@ export const startAuctionLive = functions.region('europe-west1').https.onCall(as
     throw new functions.https.HttpsError('failed-precondition', 'Auction has no items');
   }
 
+  const settings = mergeSettings(auction.settings);
+
   const items = Object.entries(itemsSnap.val())
     .map(([id, d]: [string, any]) => ({ id, ...d }))
     .sort((a: any, b: any) => a.order - b.order);
@@ -61,7 +81,7 @@ export const startAuctionLive = functions.region('europe-west1').https.onCall(as
 
   await db.ref(`/auction_items/${firstItem.id}`).update({
     status: 'active',
-    currentBid: firstItem.preBidPrice || firstItem.openingPrice,
+    currentBid: firstItem.preBidPrice || firstItem.openingPrice || 0,
     currentBidderId: null,
     currentBidderName: null,
   });
@@ -70,8 +90,11 @@ export const startAuctionLive = functions.region('europe-west1').https.onCall(as
     status: 'live',
     currentItemId: firstItem.id,
     currentRound: 1,
-    timerEndsAt: now + auction.settings.round1.timerSeconds * 1000,
-    timerDuration: auction.settings.round1.timerSeconds,
+    round1Resets: 0,
+    itemStartedAt: now,
+    timerEndsAt: now + settings.round1.timerSeconds * 1000,
+    timerDuration: settings.round1.timerSeconds,
+    settings,
   });
 
   await db.ref(`/live_chat/${auctionId}`).push({
@@ -111,12 +134,14 @@ export const activateFirstItem = functions.region('europe-west1').https.onCall(a
 
   await db.ref(`/auction_items/${firstItem.id}`).update({
     status: 'active',
-    currentBid: firstItem.preBidPrice || firstItem.openingPrice,
+    currentBid: firstItem.preBidPrice || firstItem.openingPrice || 0,
   });
 
   await db.ref(`/auctions/${auctionId}`).update({
     currentItemId: firstItem.id,
     currentRound: 1,
+    round1Resets: 0,
+    itemStartedAt: now,
     timerEndsAt: now + auction.settings.round1.timerSeconds * 1000,
     timerDuration: auction.settings.round1.timerSeconds,
   });
@@ -197,6 +222,12 @@ export const closeItemAndAdvance = functions.region('europe-west1').https.onCall
     });
   }
 
+  // Advance to next item
+  return await advanceToNextItem(auctionId, auction.settings);
+});
+
+// Shared helper: advance to next pending item or end auction
+async function advanceToNextItem(auctionId: string, settings: any) {
   const allItemsSnap = await db.ref('/auction_items')
     .orderByChild('auctionId').equalTo(auctionId).once('value');
   const allItems = allItemsSnap.val() || {};
@@ -222,15 +253,17 @@ export const closeItemAndAdvance = functions.region('europe-west1').https.onCall
   const nextItem = pendingItems[0] as any;
   await db.ref(`/auction_items/${nextItem.id}`).update({
     status: 'active',
-    currentBid: nextItem.preBidPrice || nextItem.openingPrice,
+    currentBid: nextItem.preBidPrice || nextItem.openingPrice || 0,
     currentBidderId: null,
     currentBidderName: null,
   });
   await db.ref(`/auctions/${auctionId}`).update({
     currentItemId: nextItem.id,
     currentRound: 1,
-    timerEndsAt: now + auction.settings.round1.timerSeconds * 1000,
-    timerDuration: auction.settings.round1.timerSeconds,
+    round1Resets: 0,
+    itemStartedAt: now,
+    timerEndsAt: now + settings.round1.timerSeconds * 1000,
+    timerDuration: settings.round1.timerSeconds,
   });
   await db.ref(`/live_chat/${auctionId}`).push({
     senderId: 'system',
@@ -241,7 +274,7 @@ export const closeItemAndAdvance = functions.region('europe-west1').https.onCall
   });
 
   return { action: 'advanced_to_next', nextItemId: nextItem.id };
-});
+}
 
 // adjustAuctionTimer
 export const adjustAuctionTimer = functions.region('europe-west1').https.onCall(async (data, context) => {

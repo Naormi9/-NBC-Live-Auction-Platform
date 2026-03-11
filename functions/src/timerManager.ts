@@ -3,6 +3,22 @@ import * as admin from 'firebase-admin';
 
 const db = admin.database();
 
+const DEFAULT_SETTINGS = {
+  round1: { increment: 1000, timerSeconds: 45 },
+  round2: { increment: 500, timerSeconds: 30 },
+  round3: { increment: 250, timerSeconds: 30 },
+  hardCloseMinutes: 30,
+};
+
+function mergeSettings(settings: any) {
+  return {
+    round1: { ...DEFAULT_SETTINGS.round1, ...(settings?.round1 || {}) },
+    round2: { ...DEFAULT_SETTINGS.round2, ...(settings?.round2 || {}) },
+    round3: { ...DEFAULT_SETTINGS.round3, ...(settings?.round3 || {}) },
+    hardCloseMinutes: settings?.hardCloseMinutes ?? DEFAULT_SETTINGS.hardCloseMinutes,
+  };
+}
+
 export const timerTick = functions.region('europe-west1').pubsub
   .schedule('every 1 minutes')
   .onRun(async () => {
@@ -22,6 +38,12 @@ export const timerTick = functions.region('europe-west1').pubsub
       if (!auction.timerEndsAt || auction.timerEndsAt > now) continue;
       if (!auction.currentItemId) continue;
 
+      // Hard close check: if item has been active for too long, force close
+      const settings = mergeSettings(auction.settings);
+      const hardCloseMs = settings.hardCloseMinutes * 60 * 1000;
+      const itemStartedAt = auction.itemStartedAt || 0;
+      const isHardClose = itemStartedAt > 0 && (now - itemStartedAt) > hardCloseMs;
+
       // Distributed lock to prevent duplicate processing
       const lockRef = db.ref(`/timer_locks/${auctionId}`);
       const lockResult = await lockRef.transaction((current) => {
@@ -34,104 +56,144 @@ export const timerTick = functions.region('europe-west1').pubsub
 
       const currentRound = auction.currentRound as 1 | 2 | 3;
 
-      if (currentRound < 3) {
-        const nextRound = (currentRound + 1) as 2 | 3;
-        const roundKey = `round${nextRound}` as 'round2' | 'round3';
-        const timerSeconds = auction.settings[roundKey].timerSeconds;
+      // Hard close: force close the item regardless of round
+      if (isHardClose) {
+        await closeItemAndAdvance(auctionId, auction, settings, lockRef);
+        continue;
+      }
 
-        await db.ref(`/auctions/${auctionId}`).update({
-          currentRound: nextRound,
-          timerEndsAt: now + timerSeconds * 1000,
-          timerDuration: timerSeconds,
-        });
-
-        await db.ref(`/live_chat/${auctionId}`).push({
-          senderId: 'system',
-          senderName: 'מערכת',
-          senderRole: 'system',
-          message: `עוברים לסיבוב ${nextRound}`,
-          timestamp: admin.database.ServerValue.TIMESTAMP,
-        });
+      if (currentRound === 1) {
+        // Spec: Round 1 timer resets twice automatically before advancing to round 2
+        const round1Resets = auction.round1Resets || 0;
+        if (round1Resets < 2) {
+          // Auto-reset timer (attempt 1 or 2)
+          await db.ref(`/auctions/${auctionId}`).update({
+            round1Resets: round1Resets + 1,
+            timerEndsAt: now + settings.round1.timerSeconds * 1000,
+          });
+          await db.ref(`/live_chat/${auctionId}`).push({
+            senderId: 'system',
+            senderName: 'מערכת',
+            senderRole: 'system',
+            message: `סיבוב 1 — ניסיון ${round1Resets + 1}/2, הטיימר מתאפס`,
+            timestamp: admin.database.ServerValue.TIMESTAMP,
+          });
+        } else {
+          // 3rd time expired — advance to round 2
+          await advanceRound(auctionId, 2, settings);
+        }
+      } else if (currentRound === 2) {
+        // Spec: Round 2 timer expires — advance to round 3
+        await advanceRound(auctionId, 3, settings);
       } else {
-        // Round 3 timer expired - close item and advance
-        const itemRef = db.ref(`/auction_items/${auction.currentItemId}`);
-        const itemSnap = await itemRef.once('value');
-        const item = itemSnap.val();
-
-        if (!item) continue;
-
-        const hasBidder = item.currentBidderId != null;
-
-        if (hasBidder) {
-          await itemRef.update({
-            status: 'sold',
-            soldAt: admin.database.ServerValue.TIMESTAMP,
-            soldPrice: item.currentBid,
-          });
-          await db.ref(`/live_chat/${auctionId}`).push({
-            senderId: 'system',
-            senderName: 'מערכת',
-            senderRole: 'system',
-            message: `הפריט "${item.title}" נמכר ב-₪${item.currentBid.toLocaleString()}!`,
-            timestamp: admin.database.ServerValue.TIMESTAMP,
-          });
-        } else {
-          await itemRef.update({ status: 'unsold' });
-          await db.ref(`/live_chat/${auctionId}`).push({
-            senderId: 'system',
-            senderName: 'מערכת',
-            senderRole: 'system',
-            message: `הפריט "${item.title}" לא נמכר.`,
-            timestamp: admin.database.ServerValue.TIMESTAMP,
-          });
-        }
-
-        // Find next pending item
-        const allItemsSnap = await db.ref('/auction_items')
-          .orderByChild('auctionId')
-          .equalTo(auctionId)
-          .once('value');
-
-        const allItems = allItemsSnap.val() || {};
-        const pendingItems = Object.entries(allItems)
-          .map(([id, data]: [string, any]) => ({ id, ...data }))
-          .filter((i: any) => i.status === 'pending')
-          .sort((a: any, b: any) => a.order - b.order);
-
-        if (pendingItems.length === 0) {
-          await db.ref(`/auctions/${auctionId}`).update({
-            status: 'ended',
-            currentItemId: null,
-          });
-          await db.ref(`/live_chat/${auctionId}`).push({
-            senderId: 'system',
-            senderName: 'מערכת',
-            senderRole: 'system',
-            message: 'המכרז הסתיים! תודה לכל המשתתפים.',
-            timestamp: admin.database.ServerValue.TIMESTAMP,
-          });
-          // Release lock after auction ends
-          await lockRef.remove();
-        } else {
-          const nextItem = pendingItems[0] as any;
-          await db.ref(`/auction_items/${nextItem.id}`).update({
-            status: 'active',
-            currentBid: nextItem.preBidPrice || nextItem.openingPrice,
-          });
-          await db.ref(`/auctions/${auctionId}`).update({
-            currentItemId: nextItem.id,
-            currentRound: 1,
-            timerEndsAt: now + auction.settings.round1.timerSeconds * 1000,
-            timerDuration: auction.settings.round1.timerSeconds,
-          });
-          await db.ref(`/live_chat/${auctionId}`).push({
-            senderId: 'system',
-            senderName: 'מערכת',
-            senderRole: 'system',
-            message: `הפריט "${nextItem.title}" עלה לבמה!`,
-            timestamp: admin.database.ServerValue.TIMESTAMP,
-          });
-        }
+        // Round 3 expired — close item and advance to next
+        await closeItemAndAdvance(auctionId, auction, settings, lockRef);
       }
     }
   });
+
+async function advanceRound(auctionId: string, nextRound: 2 | 3, settings: any) {
+  const roundKey = `round${nextRound}` as 'round2' | 'round3';
+  const timerSeconds = settings[roundKey].timerSeconds;
+  const now = Date.now();
+
+  await db.ref(`/auctions/${auctionId}`).update({
+    currentRound: nextRound,
+    timerEndsAt: now + timerSeconds * 1000,
+    timerDuration: timerSeconds,
+  });
+
+  await db.ref(`/live_chat/${auctionId}`).push({
+    senderId: 'system',
+    senderName: 'מערכת',
+    senderRole: 'system',
+    message: `עוברים לסיבוב ${nextRound} — מדרגת קפיצה: ₪${settings[roundKey].increment.toLocaleString()}`,
+    timestamp: admin.database.ServerValue.TIMESTAMP,
+  });
+}
+
+async function closeItemAndAdvance(auctionId: string, auction: any, settings: any, lockRef: admin.database.Reference) {
+  const itemRef = db.ref(`/auction_items/${auction.currentItemId}`);
+  const itemSnap = await itemRef.once('value');
+  const item = itemSnap.val();
+
+  if (!item) return;
+
+  const hasBidder = item.currentBidderId != null;
+
+  if (hasBidder) {
+    await itemRef.update({
+      status: 'sold',
+      soldAt: admin.database.ServerValue.TIMESTAMP,
+      soldPrice: item.currentBid,
+    });
+    await db.ref(`/live_chat/${auctionId}`).push({
+      senderId: 'system',
+      senderName: 'מערכת',
+      senderRole: 'system',
+      message: `הפריט "${item.title}" נמכר ב-₪${item.currentBid.toLocaleString()} ל-${item.currentBidderName}!`,
+      timestamp: admin.database.ServerValue.TIMESTAMP,
+    });
+  } else {
+    await itemRef.update({ status: 'unsold' });
+    await db.ref(`/live_chat/${auctionId}`).push({
+      senderId: 'system',
+      senderName: 'מערכת',
+      senderRole: 'system',
+      message: `הפריט "${item.title}" לא נמכר.`,
+      timestamp: admin.database.ServerValue.TIMESTAMP,
+    });
+  }
+
+  // Find next pending item
+  const allItemsSnap = await db.ref('/auction_items')
+    .orderByChild('auctionId')
+    .equalTo(auctionId)
+    .once('value');
+
+  const allItems = allItemsSnap.val() || {};
+  const pendingItems = Object.entries(allItems)
+    .map(([id, data]: [string, any]) => ({ id, ...data }))
+    .filter((i: any) => i.status === 'pending')
+    .sort((a: any, b: any) => a.order - b.order);
+
+  const now = Date.now();
+
+  if (pendingItems.length === 0) {
+    await db.ref(`/auctions/${auctionId}`).update({
+      status: 'ended',
+      currentItemId: null,
+    });
+    await db.ref(`/live_chat/${auctionId}`).push({
+      senderId: 'system',
+      senderName: 'מערכת',
+      senderRole: 'system',
+      message: 'המכרז הסתיים! תודה לכל המשתתפים.',
+      timestamp: admin.database.ServerValue.TIMESTAMP,
+    });
+    await lockRef.remove();
+  } else {
+    const nextItem = pendingItems[0] as any;
+    await db.ref(`/auction_items/${nextItem.id}`).update({
+      status: 'active',
+      currentBid: nextItem.preBidPrice || nextItem.openingPrice || 0,
+      currentBidderId: null,
+      currentBidderName: null,
+    });
+    await db.ref(`/auctions/${auctionId}`).update({
+      currentItemId: nextItem.id,
+      currentRound: 1,
+      round1Resets: 0,
+      itemStartedAt: now,
+      timerEndsAt: now + settings.round1.timerSeconds * 1000,
+      timerDuration: settings.round1.timerSeconds,
+    });
+    await db.ref(`/live_chat/${auctionId}`).push({
+      senderId: 'system',
+      senderName: 'מערכת',
+      senderRole: 'system',
+      message: `הפריט "${nextItem.title}" עלה לבמה!`,
+      timestamp: admin.database.ServerValue.TIMESTAMP,
+    });
+  }
+}
