@@ -63,8 +63,6 @@ export default function HomePage() {
                 </div>
                 <div className="text-sm text-text-secondary">
                   <span>{auction.houseName}</span>
-                  <span className="mx-2">•</span>
-                  <span>👁 {auction.viewerCount} צופים</span>
                 </div>
               </Link>
             ))}

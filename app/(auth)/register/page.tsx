@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { ref, set, serverTimestamp } from 'firebase/database';
+import { ref, update, serverTimestamp } from 'firebase/database';
 import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -22,7 +22,7 @@ export default function RegisterPage() {
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(cred.user, { displayName });
-      await set(ref(db, `users/${cred.user.uid}`), {
+      await update(ref(db, `users/${cred.user.uid}`), {
         displayName,
         email,
         phone,

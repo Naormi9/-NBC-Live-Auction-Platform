@@ -8,12 +8,14 @@
     },
     "auction_items": {
       ".read": true,
+      ".indexOn": ["auctionId", "order"],
       "$itemId": {
         ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager')"
       }
     },
     "auctions": {
       ".read": true,
+      ".indexOn": ["status"],
       "$auctionId": {
         ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager')"
       }
@@ -42,47 +44,55 @@
     "registrations": {
       "$auctionId": {
         "$userId": {
-          ".read": "auth != null && auth.uid === $userId",
-          ".write": "auth != null && auth.uid === $userId"
+          ".read": "auth != null && (auth.uid === $userId || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager')",
+          ".write": "auth != null && (auth.uid === $userId || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager')"
         }
       }
     },
     "users": {
       "$userId": {
-        ".read": "auth != null && auth.uid === $userId",
-        ".write": "auth != null && (auth.uid === $userId || root.child('users').child(auth.uid).child('role').val() === 'admin')",
-        ".validate": "newData.hasChildren(['displayName','email','phone','role','createdAt'])",
-        "role": {
-          ".validate": "newData.isString() && (newData.val() === 'participant' || newData.val() === 'house_manager' || newData.val() === 'admin') && (newData.val() === data.val() || !data.parent().exists() || root.child('users').child(auth.uid).child('role').val() === 'admin')"
-        },
+        ".read": "auth != null && (auth.uid === $userId || root.child('users').child(auth.uid).child('role').val() === 'admin')",
         "displayName": {
+          ".write": "auth != null && auth.uid === $userId",
           ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100"
         },
         "phone": {
+          ".write": "auth != null && auth.uid === $userId",
           ".validate": "newData.isString()"
         },
         "email": {
-          ".validate": "newData.isString() && (newData.val() === data.val() || !data.exists())"
+          ".write": "auth != null && ((auth.uid === $userId && !data.exists()) || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+          ".validate": "newData.isString()"
         },
-        "createdAt": {
-          ".validate": "newData.val() === data.val() || !data.exists()"
+        "role": {
+          ".write": "auth != null && ((auth.uid === $userId && !data.exists() && newData.val() === 'participant') || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+          ".validate": "newData.isString() && (newData.val() === 'participant' || newData.val() === 'house_manager' || newData.val() === 'admin')"
         },
         "houseId": {
-          ".validate": "data.val() === newData.val() || !data.parent().exists() || root.child('users').child(auth.uid).child('role').val() === 'admin'"
-        }
-      }
-    },
-    "presence": {
-      "$auctionId": {
-        ".read": true,
-        "$sessionId": {
-          ".write": true
+          ".write": "auth != null && ((auth.uid === $userId && !data.exists()) || root.child('users').child(auth.uid).child('role').val() === 'admin')"
+        },
+        "createdAt": {
+          ".write": "auth != null && auth.uid === $userId && !data.exists()"
         }
       }
     },
     "bid_history": {
       ".read": true,
       ".write": false
+    },
+    "presence": {
+      "$auctionId": {
+        ".read": true,
+        "$sessionId": {
+          ".write": "auth != null"
+        }
+      }
+    },
+    "timer_locks": {
+      "$auctionId": {
+        ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
+        ".write": false
+      }
     }
   }
 }

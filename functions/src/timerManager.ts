@@ -3,9 +3,6 @@ import * as admin from 'firebase-admin';
 
 const db = admin.database();
 
-// Runs every 1 minute to check live auctions for expired timers
-// Firebase Cloud Scheduler minimum is 1 minute
-// Client-side auto-advance in AuctioneerConsole fills the gap with 5s checks
 export const timerTick = functions.pubsub
   .schedule('every 1 minutes')
   .onRun(async () => {
@@ -25,11 +22,19 @@ export const timerTick = functions.pubsub
       if (!auction.timerEndsAt || auction.timerEndsAt > now) continue;
       if (!auction.currentItemId) continue;
 
-      // Timer has expired
+      // Distributed lock to prevent duplicate processing
+      const lockRef = db.ref(`/timer_locks/${auctionId}`);
+      const lockResult = await lockRef.transaction((current) => {
+        const txNow = Date.now();
+        if (current && current > txNow - 50000) return; // lock held within 50s
+        return txNow;
+      });
+
+      if (!lockResult.committed) continue;
+
       const currentRound = auction.currentRound as 1 | 2 | 3;
 
       if (currentRound < 3) {
-        // Advance to next round
         const nextRound = (currentRound + 1) as 2 | 3;
         const roundKey = `round${nextRound}` as 'round2' | 'round3';
         const timerSeconds = auction.settings[roundKey].timerSeconds;
@@ -105,6 +110,8 @@ export const timerTick = functions.pubsub
             message: 'המכרז הסתיים! תודה לכל המשתתפים.',
             timestamp: admin.database.ServerValue.TIMESTAMP,
           });
+          // Release lock after auction ends
+          await lockRef.remove();
         } else {
           const nextItem = pendingItems[0] as any;
           await db.ref(`/auction_items/${nextItem.id}`).update({

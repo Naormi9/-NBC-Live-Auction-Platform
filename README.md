@@ -14,7 +14,7 @@
 ## Firebase Setup
 
 1. Create project at https://console.firebase.google.com
-2. Enable **Realtime Database** (start in test mode)
+2. Enable **Realtime Database**
 3. Enable **Authentication** → Email/Password
 4. Enable **Storage**
 5. Deploy security rules: `firebase deploy --only database`
@@ -22,9 +22,10 @@
 
 ## Creating First Admin User
 
-1. Register at `/register`
-2. In Firebase Console → Realtime Database → `users` → `[your uid]` → set `role` to `"admin"`
-3. Access admin panel at `/admin`
+1. Register normally at `/register`
+2. In Firebase Console → Realtime Database → `users` → `{your uid}` → set `role` to `"admin"`
+3. This is intentional — first admin must be set by someone with Firebase Console access
+4. Access admin panel at `/admin`
 
 ## Seed Test Data
 
@@ -38,7 +39,17 @@ import('/lib/seed-data').then(m => m.seedDatabase())
 
 - **Frontend:** Next.js 14, TypeScript, Tailwind CSS
 - **Backend:** Firebase Realtime Database, Firebase Auth, Firebase Storage
-- **Cloud Functions:** `processBid` (transaction-based), `advanceRoundOrItem`, `timerTick` (scheduler), `onPreBidCreated` (aggregator)
+- **Cloud Functions:**
+  - `processBid` — transaction-based bid processing
+  - `advanceRoundOrItem` — legacy callable for round/item advancement
+  - `timerTick` — Cloud Scheduler (every 1 min) for server-authoritative timer progression
+  - `onPreBidCreated` — pre-bid aggregator
+  - `startAuctionLive` — transitions auction from published/draft → live
+  - `activateFirstItem` — activates first pending item in a live auction
+  - `advanceAuctionRound` — advances current round (1→2→3)
+  - `closeItemAndAdvance` — closes current item (sold/unsold), activates next
+  - `adjustAuctionTimer` — adds time or pauses timer
+  - `endAuction` — manually ends a live auction
 - **Real-time:** Firebase RTDB listeners with custom React hooks
 
 ## Key Pages
@@ -56,36 +67,48 @@ import('/lib/seed-data').then(m => m.seedDatabase())
 
 ## Security Model
 
-### Authentication
-- Firebase Authentication (email/password)
-- Client-side auth state via `onAuthStateChanged` in React context
+### Architecture Overview
+This platform uses a server-authoritative architecture for all critical auction state.
 
-### Role-Based Access
-- **Roles:** `participant` (default), `house_manager`, `admin`
-- Only admins can change user roles (enforced via `.validate` rules — role field is immutable after creation unless caller is admin)
-- Users can only set `role: 'participant'` on first registration; `email` and `createdAt` are also immutable after creation
-- `auction_items` and `auctions` are writable only by `admin` or `house_manager`
+### Authentication & Authorization
+- Firebase Authentication handles user identity
+- User roles stored in RTDB at `users/{uid}/role`
+- Role escalation blocked: users cannot write their own `role`, `houseId`, `email`, or `createdAt` after initial registration
+- Only admins can change user roles via Firebase Console or admin tools
 
-### Auction Registration
-- Self-service: users register for auctions with auto-approved status
-- Registration is required to place bids and use live chat
-- No admin approval step (by design — open auctions)
+### Auction State Transitions (Server Only)
+All critical auction mutations run through Firebase Cloud Functions:
+- `startAuctionLive` — transitions auction from published → live, activates first item
+- `activateFirstItem` — activates first pending item in a live auction
+- `advanceAuctionRound` — advances current round (1→2→3)
+- `closeItemAndAdvance` — closes current item (sold/unsold), activates next
+- `adjustAuctionTimer` — adds time or pauses timer
+- `endAuction` — manually ends a live auction
 
-### Admin Route Protection
-Admin pages are protected by three layers:
-1. **Firebase RTDB security rules** — role-based write access prevents unauthorized data changes
-2. **Client-side auth guards** — admin pages check user role on mount and redirect if unauthorized
-3. **Cloud Function auth checks** — `advanceRoundOrItem` and `processBid` verify caller identity and role
+All functions verify authentication and admin/house_manager role before executing.
+Operations are idempotent — safe to retry without corrupting state.
 
-### Viewer Presence
-- Viewer count is derived from `presence/{auctionId}` by counting child nodes (no counter writes to auction path)
-- Each viewer writes a session entry under `presence/` with `onDisconnect` cleanup
-- Stable session key (via `sessionStorage`) prevents overcounting on reconnect
+### Timer Correctness
+- `timerTick` Cloud Function runs every 1 minute via Cloud Scheduler
+- Uses a distributed lock (`timer_locks`) to prevent duplicate processing
+- Client timers are display-only — server is authoritative for progression
+- Auctioneer console can manually advance if needed
+
+### Viewer Count
+- Viewer count derived from `presence/{auctionId}` by counting children
+- No client writes to auctions path for viewer count
+- Presence cleanup on disconnect via Firebase onDisconnect
+- Presence counts authenticated viewers only
+
+### First Admin Setup
+1. Register normally at /register
+2. In Firebase Console → Realtime Database → users → {your uid} → set `role` to `"admin"` manually
+3. This is intentional — first admin must be set by someone with Firebase Console access
 
 ### Known Limitations
-- No server-side session cookie — middleware cannot verify Firebase Auth tokens without the admin SDK
-- Admin page HTML is technically accessible (but all data operations are server-protected)
-- For production with sensitive admin UI, consider implementing Firebase session cookies or a custom auth API route
+- No server-side session cookie — middleware is pass-through
+- Admin page HTML may be technically reachable without auth, but all data operations and state mutations are server-protected via Cloud Functions and RTDB rules
+- Firebase scheduler minimum granularity is 1 minute — auctioneer can manually advance rounds/items for sub-minute responsiveness
 
 ## License
 
