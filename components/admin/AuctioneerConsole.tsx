@@ -3,15 +3,13 @@
 import { useState } from 'react';
 import { ref, push, serverTimestamp } from 'firebase/database';
 import { db } from '@/lib/firebase';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { callFunction } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useCurrentItem, useLiveAuction, useAuction, useCatalog, useViewerCount, useTimer, useBidHistory, useLiveChat } from '@/lib/hooks';
 import { formatPrice, formatTimer, getTimerColor } from '@/lib/auction-utils';
 import LiveBadge from '../ui/LiveBadge';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import toast from 'react-hot-toast';
-
-const fns = getFunctions(undefined, 'europe-west1');
 
 export default function AuctioneerConsole() {
   const { user, profile } = useAuth();
@@ -37,11 +35,10 @@ export default function AuctioneerConsole() {
     );
   }
 
-  const activateFirstItem = async () => {
+  const handleActivateFirstItem = async () => {
     if (!auctionId) return;
     try {
-      const fn = httpsCallable(fns, 'activateFirstItem');
-      await fn({ auctionId });
+      await callFunction('activateFirstItem', { auctionId });
       toast.success('הפריט הראשון הופעל');
     } catch (err: any) {
       toast.error(err.message || 'שגיאה');
@@ -51,8 +48,7 @@ export default function AuctioneerConsole() {
   const addTime = async (seconds: number) => {
     if (!auctionId) return;
     try {
-      const fn = httpsCallable(fns, 'adjustAuctionTimer');
-      await fn({ auctionId, action: 'add', seconds });
+      await callFunction('adjustAuctionTimer', { auctionId, action: 'add', seconds });
       toast.success(`נוספו ${seconds} שניות`);
     } catch (err: any) {
       toast.error(err.message || 'שגיאה');
@@ -62,8 +58,7 @@ export default function AuctioneerConsole() {
   const pauseTimer = async () => {
     if (!auctionId) return;
     try {
-      const fn = httpsCallable(fns, 'adjustAuctionTimer');
-      await fn({ auctionId, action: 'pause' });
+      await callFunction('adjustAuctionTimer', { auctionId, action: 'pause' });
       toast.success('הטיימר הושהה');
     } catch (err: any) {
       toast.error(err.message || 'שגיאה');
@@ -74,8 +69,7 @@ export default function AuctioneerConsole() {
     if (!auctionId || isAdvancing) return;
     setIsAdvancing(true);
     try {
-      const fn = httpsCallable(fns, 'closeItemAndAdvance');
-      await fn({ auctionId, markAsSold });
+      await callFunction('closeItemAndAdvance', { auctionId, markAsSold });
       toast.success(markAsSold ? 'פריט נמכר — עברנו לבא' : 'פריט לא נמכר — עברנו לבא');
     } catch (err: any) {
       toast.error(err.message || 'שגיאה בביצוע הפעולה');
@@ -88,9 +82,21 @@ export default function AuctioneerConsole() {
     if (!auctionId || isAdvancing) return;
     setIsAdvancing(true);
     try {
-      const fn = httpsCallable(fns, 'advanceAuctionRound');
-      await fn({ auctionId });
+      await callFunction('advanceAuctionRound', { auctionId });
       toast.success('עברנו לסיבוב הבא');
+    } catch (err: any) {
+      toast.error(err.message || 'שגיאה');
+    } finally {
+      setIsAdvancing(false);
+    }
+  };
+
+  const handleEndAuction = async () => {
+    if (!auctionId || isAdvancing) return;
+    setIsAdvancing(true);
+    try {
+      await callFunction('endAuction', { auctionId });
+      toast.success('המכרז הסתיים');
     } catch (err: any) {
       toast.error(err.message || 'שגיאה');
     } finally {
@@ -120,9 +126,18 @@ export default function AuctioneerConsole() {
           <LiveBadge />
           <h1 className="text-lg font-bold">{auction.title}</h1>
         </div>
-        <div className="flex items-center gap-2 text-text-secondary">
-          <span>👁</span>
-          <span>{viewerCount} צופים</span>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-text-secondary">
+            <span>👁</span>
+            <span>{viewerCount} צופים</span>
+          </div>
+          <button
+            onClick={handleEndAuction}
+            disabled={isAdvancing}
+            className="bg-timer-red/80 hover:bg-timer-red text-white px-3 py-1.5 rounded-lg text-sm disabled:opacity-50"
+          >
+            סיים מכרז
+          </button>
         </div>
       </div>
 
@@ -172,7 +187,7 @@ export default function AuctioneerConsole() {
             <div className="text-center py-8">
               <p className="text-text-secondary mb-4">המכרז חי אך אין פריט פעיל</p>
               <button
-                onClick={activateFirstItem}
+                onClick={handleActivateFirstItem}
                 className="btn-accent px-6 py-3 rounded-xl text-lg font-bold"
               >
                 ▶ התחל — פריט ראשון
