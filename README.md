@@ -62,14 +62,25 @@ import('/lib/seed-data').then(m => m.seedDatabase())
 
 ### Role-Based Access
 - **Roles:** `participant` (default), `house_manager`, `admin`
-- Only admins can change user roles (enforced in RTDB security rules at field level)
+- Only admins can change user roles (enforced via `.validate` rules — role field is immutable after creation unless caller is admin)
+- Users can only set `role: 'participant'` on first registration; `email` and `createdAt` are also immutable after creation
 - `auction_items` and `auctions` are writable only by `admin` or `house_manager`
+
+### Auction Registration
+- Self-service: users register for auctions with auto-approved status
+- Registration is required to place bids and use live chat
+- No admin approval step (by design — open auctions)
 
 ### Admin Route Protection
 Admin pages are protected by three layers:
 1. **Firebase RTDB security rules** — role-based write access prevents unauthorized data changes
 2. **Client-side auth guards** — admin pages check user role on mount and redirect if unauthorized
 3. **Cloud Function auth checks** — `advanceRoundOrItem` and `processBid` verify caller identity and role
+
+### Viewer Presence
+- Viewer count is derived from `presence/{auctionId}` by counting child nodes (no counter writes to auction path)
+- Each viewer writes a session entry under `presence/` with `onDisconnect` cleanup
+- Stable session key (via `sessionStorage`) prevents overcounting on reconnect
 
 ### Known Limitations
 - No server-side session cookie — middleware cannot verify Firebase Auth tokens without the admin SDK

@@ -50,13 +50,25 @@
     "users": {
       "$userId": {
         ".read": "auth != null && auth.uid === $userId",
-        ".write": "auth != null && auth.uid === $userId",
+        ".write": "auth != null && (auth.uid === $userId || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+        ".validate": "newData.hasChildren(['displayName','email','phone','role','createdAt'])",
         "role": {
-          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
-          ".validate": "newData.isString() && (newData.val() === 'participant' || newData.val() === 'house_manager' || newData.val() === 'admin')"
+          ".validate": "newData.isString() && (newData.val() === 'participant' || newData.val() === 'house_manager' || newData.val() === 'admin') && (newData.val() === data.val() || !data.parent().exists() || root.child('users').child(auth.uid).child('role').val() === 'admin')"
+        },
+        "displayName": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100"
+        },
+        "phone": {
+          ".validate": "newData.isString()"
+        },
+        "email": {
+          ".validate": "newData.isString() && (newData.val() === data.val() || !data.exists())"
+        },
+        "createdAt": {
+          ".validate": "newData.val() === data.val() || !data.exists()"
         },
         "houseId": {
-          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+          ".validate": "data.val() === newData.val() || !data.parent().exists() || root.child('users').child(auth.uid).child('role').val() === 'admin'"
         }
       }
     },
