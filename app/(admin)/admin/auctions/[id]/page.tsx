@@ -1,9 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useState } from 'react';
-import { ref, update, push, set, remove } from 'firebase/database';
-import { db } from '@/lib/firebase';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useAuction, useCatalog } from '@/lib/hooks';
 import Navbar from '@/components/ui/Navbar';
 import { AuctionStatusBadge, ItemStatusBadge } from '@/components/ui/StatusBadge';
@@ -21,31 +19,23 @@ export default function EditAuctionPage() {
   if (!auction) return <><Navbar /><div className="text-center py-20 text-text-secondary">מכרז לא נמצא</div></>;
 
   const startLive = async () => {
-    if (!items.length) {
-      toast.error('הוסף פריטים לפני שמתחילים');
-      return;
+    try {
+      const fn = httpsCallable(getFunctions(), 'startAuctionLive');
+      await fn({ auctionId });
+      toast.success('המכרז התחיל!');
+    } catch (err: any) {
+      toast.error(err.message || 'שגיאה בהפעלת המכרז');
     }
-    const firstItem = items[0];
-    await update(ref(db, `auction_items/${firstItem.id}`), {
-      status: 'active',
-      currentBid: firstItem.preBidPrice || firstItem.openingPrice,
-    });
-    await update(ref(db, `auctions/${auctionId}`), {
-      status: 'live',
-      currentItemId: firstItem.id,
-      currentRound: 1,
-      timerEndsAt: Date.now() + auction.settings.round1.timerSeconds * 1000,
-      timerDuration: auction.settings.round1.timerSeconds,
-    });
-    toast.success('המכרז התחיל!');
   };
 
-  const endAuction = async () => {
-    await update(ref(db, `auctions/${auctionId}`), {
-      status: 'ended',
-      currentItemId: null,
-    });
-    toast.success('המכרז הסתיים');
+  const handleEndAuction = async () => {
+    try {
+      const fn = httpsCallable(getFunctions(), 'endAuction');
+      await fn({ auctionId });
+      toast.success('המכרז הסתיים');
+    } catch (err: any) {
+      toast.error(err.message || 'שגיאה בסיום המכרז');
+    }
   };
 
   return (
@@ -71,7 +61,7 @@ export default function EditAuctionPage() {
               </button>
             )}
             {auction.status === 'live' && (
-              <button onClick={endAuction} className="bg-timer-red text-white px-4 py-2 rounded-lg font-semibold text-sm">
+              <button onClick={handleEndAuction} className="bg-timer-red text-white px-4 py-2 rounded-lg font-semibold text-sm">
                 סיים מכרז
               </button>
             )}

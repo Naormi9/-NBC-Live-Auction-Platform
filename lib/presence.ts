@@ -1,20 +1,27 @@
 import { ref, onValue, onDisconnect, set, remove } from 'firebase/database';
 import { db } from './firebase';
 
-function getSessionId(): string {
-  if (typeof window === 'undefined') return 'ssr';
-  let sid = sessionStorage.getItem('nbc_session_id');
-  if (!sid) {
-    sid = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    sessionStorage.setItem('nbc_session_id', sid);
+function getSessionId(userId?: string | null): string {
+  try {
+    let sid = sessionStorage.getItem('nbc_session_id');
+    if (!sid) {
+      sid = `${userId || 'anon'}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      sessionStorage.setItem('nbc_session_id', sid);
+    }
+    return sid;
+  } catch {
+    return `${userId || 'anon'}_${Math.random().toString(36).slice(2)}`;
   }
-  return sid;
 }
 
-let hasIncremented = false;
-
 export function trackViewer(auctionId: string, userId?: string | null): () => void {
-  const sessionId = userId || getSessionId();
+  // Only track authenticated viewers (presence rules require auth)
+  if (!userId) {
+    return () => {};
+  }
+
+  let hasIncremented = false;
+  const sessionId = getSessionId(userId);
   const connectedRef = ref(db, '.info/connected');
   const myPresenceRef = ref(db, `presence/${auctionId}/${sessionId}`);
 
@@ -22,7 +29,9 @@ export function trackViewer(auctionId: string, userId?: string | null): () => vo
     if (snap.val() === true && !hasIncremented) {
       hasIncremented = true;
       onDisconnect(myPresenceRef).remove();
-      set(myPresenceRef, true);
+      set(myPresenceRef, { uid: userId, connectedAt: Date.now() });
+    } else if (snap.val() === false) {
+      hasIncremented = false;
     }
   });
 

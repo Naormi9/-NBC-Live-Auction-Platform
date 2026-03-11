@@ -6,6 +6,8 @@
   "scripts": {
     "build": "tsc",
     "serve": "npm run build && firebase emulators:start --only functions",
+    "build:watch": "tsc --watch",
+    "typecheck": "tsc --noEmit",
     "deploy": "firebase deploy --only functions"
   },
   "engines": {

@@ -1,14 +1,17 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { ref, update, push, serverTimestamp, get } from 'firebase/database';
+import { useState } from 'react';
+import { ref, push, serverTimestamp } from 'firebase/database';
 import { db } from '@/lib/firebase';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useAuth } from '@/lib/auth-context';
 import { useCurrentItem, useLiveAuction, useAuction, useCatalog, useViewerCount, useTimer, useBidHistory, useLiveChat } from '@/lib/hooks';
 import { formatPrice, formatTimer, getTimerColor } from '@/lib/auction-utils';
 import LiveBadge from '../ui/LiveBadge';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import toast from 'react-hot-toast';
+
+const fns = getFunctions();
 
 export default function AuctioneerConsole() {
   const { user, profile } = useAuth();
@@ -22,75 +25,6 @@ export default function AuctioneerConsole() {
   const messages = useLiveChat(auctionId);
   const [chatMessage, setChatMessage] = useState('');
   const [isAdvancing, setIsAdvancing] = useState(false);
-  const autoAdvanceRef = useRef(false);
-
-  // Auto-advance when timer expires (client-side, runs every 5s)
-  // Fills the gap since Cloud Scheduler only runs every 1 minute
-  useEffect(() => {
-    if (!auction || auction.status !== 'live' || !item || !auctionId) return;
-
-    const interval = setInterval(async () => {
-      const now = Date.now();
-      if (!auction.timerEndsAt || auction.timerEndsAt > now) return;
-      if (item.status !== 'active') return;
-      if (autoAdvanceRef.current) return;
-
-      autoAdvanceRef.current = true;
-      try {
-        if (auction.currentRound < 3) {
-          const nextRound = (auction.currentRound + 1) as 2 | 3;
-          const roundKey = `round${nextRound}` as 'round2' | 'round3';
-          await update(ref(db, `auctions/${auctionId}`), {
-            currentRound: nextRound,
-            timerEndsAt: Date.now() + auction.settings[roundKey].timerSeconds * 1000,
-            timerDuration: auction.settings[roundKey].timerSeconds,
-          });
-          await push(ref(db, `live_chat/${auctionId}`), {
-            senderId: 'system',
-            senderName: 'מערכת',
-            senderRole: 'system',
-            message: `עוברים לסיבוב ${nextRound}`,
-            timestamp: serverTimestamp(),
-          });
-        } else {
-          // Round 3 expired — mark item and find next
-          const hasBidder = item.currentBidderId !== null;
-          const itemUpdate: Record<string, any> = {
-            status: hasBidder && item.currentBid > 0 ? 'sold' : 'unsold',
-          };
-          if (hasBidder && item.currentBid > 0) {
-            itemUpdate.soldAt = Date.now();
-            itemUpdate.soldPrice = item.currentBid;
-          }
-          await update(ref(db, `auction_items/${item.id}`), itemUpdate);
-
-          // Find next pending item
-          const nextItem = items.find((i) => i.order > item.order && i.status === 'pending');
-          if (nextItem) {
-            await update(ref(db, `auction_items/${nextItem.id}`), {
-              status: 'active',
-              currentBid: nextItem.preBidPrice || nextItem.openingPrice,
-            });
-            await update(ref(db, `auctions/${auctionId}`), {
-              currentItemId: nextItem.id,
-              currentRound: 1,
-              timerEndsAt: Date.now() + auction.settings.round1.timerSeconds * 1000,
-              timerDuration: auction.settings.round1.timerSeconds,
-            });
-          } else {
-            await update(ref(db, `auctions/${auctionId}`), {
-              status: 'ended',
-              currentItemId: null,
-            });
-          }
-        }
-      } finally {
-        autoAdvanceRef.current = false;
-      }
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [auction?.timerEndsAt, auction?.currentRound, auction?.status, item?.status, item?.id, auctionId, items]);
 
   if (liveLoading) return <LoadingSpinner size="lg" />;
 
@@ -104,137 +38,64 @@ export default function AuctioneerConsole() {
   }
 
   const activateFirstItem = async () => {
-    const firstPending = items.find((i) => i.status === 'pending');
-    if (!firstPending) {
-      toast.error('אין פריטים ממתינים');
-      return;
+    if (!auctionId) return;
+    try {
+      const fn = httpsCallable(fns, 'activateFirstItem');
+      await fn({ auctionId });
+      toast.success('הפריט הראשון הופעל');
+    } catch (err: any) {
+      toast.error(err.message || 'שגיאה');
     }
-    await update(ref(db, `auction_items/${firstPending.id}`), {
-      status: 'active',
-      currentBid: firstPending.preBidPrice || firstPending.openingPrice,
-    });
-    await update(ref(db, `auctions/${auctionId}`), {
-      currentItemId: firstPending.id,
-      currentRound: 1,
-      timerEndsAt: Date.now() + auction.settings.round1.timerSeconds * 1000,
-      timerDuration: auction.settings.round1.timerSeconds,
-    });
-    await push(ref(db, `live_chat/${auctionId}`), {
-      senderId: 'system',
-      senderName: 'מערכת',
-      senderRole: 'system',
-      message: `הפריט "${firstPending.title}" עלה לבמה!`,
-      timestamp: serverTimestamp(),
-    });
-    toast.success(`הפריט הראשון הופעל: ${firstPending.title}`);
   };
 
   const addTime = async (seconds: number) => {
-    const newEnd = (auction.timerEndsAt || Date.now()) + seconds * 1000;
-    await update(ref(db, `auctions/${auctionId}`), { timerEndsAt: newEnd });
-    toast.success(`נוספו ${seconds} שניות`);
+    if (!auctionId) return;
+    try {
+      const fn = httpsCallable(fns, 'adjustAuctionTimer');
+      await fn({ auctionId, action: 'add', seconds });
+      toast.success(`נוספו ${seconds} שניות`);
+    } catch (err: any) {
+      toast.error(err.message || 'שגיאה');
+    }
   };
 
   const pauseTimer = async () => {
-    await update(ref(db, `auctions/${auctionId}`), {
-      timerEndsAt: Date.now() + 999999000,
-    });
-    toast.success('הטיימר הושהה');
+    if (!auctionId) return;
+    try {
+      const fn = httpsCallable(fns, 'adjustAuctionTimer');
+      await fn({ auctionId, action: 'pause' });
+      toast.success('הטיימר הושהה');
+    } catch (err: any) {
+      toast.error(err.message || 'שגיאה');
+    }
   };
 
   const advanceToNextItem = async (markAsSold: boolean) => {
-    if (!item || isAdvancing) return;
+    if (!auctionId || isAdvancing) return;
     setIsAdvancing(true);
     try {
-    // Close current item
-    const itemUpdate: Record<string, any> = {
-      status: markAsSold && item.currentBid > 0 ? 'sold' : 'unsold',
-    };
-    if (markAsSold && item.currentBid > 0) {
-      itemUpdate.soldAt = Date.now();
-      itemUpdate.soldPrice = item.currentBid;
-    }
-    await update(ref(db, `auction_items/${item.id}`), itemUpdate);
-
-    // System message
-    if (markAsSold && item.currentBid > 0) {
-      await push(ref(db, `live_chat/${auctionId}`), {
-        senderId: 'system',
-        senderName: 'מערכת',
-        senderRole: 'system',
-        message: `הפריט "${item.title}" נמכר ב-${formatPrice(item.currentBid)} ל-${item.currentBidderName}!`,
-        timestamp: serverTimestamp(),
-      });
-    } else {
-      await push(ref(db, `live_chat/${auctionId}`), {
-        senderId: 'system',
-        senderName: 'מערכת',
-        senderRole: 'system',
-        message: `הפריט "${item.title}" לא נמכר.`,
-        timestamp: serverTimestamp(),
-      });
-    }
-
-    // Find next item
-    const nextItem = items.find((i) => i.order > item.order && i.status === 'pending');
-
-    if (nextItem) {
-      // Activate next item
-      await update(ref(db, `auction_items/${nextItem.id}`), {
-        status: 'active',
-        currentBid: nextItem.preBidPrice || nextItem.openingPrice,
-      });
-      await update(ref(db, `auctions/${auctionId}`), {
-        currentItemId: nextItem.id,
-        currentRound: 1,
-        timerEndsAt: Date.now() + auction.settings.round1.timerSeconds * 1000,
-        timerDuration: auction.settings.round1.timerSeconds,
-      });
-      await push(ref(db, `live_chat/${auctionId}`), {
-        senderId: 'system',
-        senderName: 'מערכת',
-        senderRole: 'system',
-        message: `הפריט "${nextItem.title}" עלה לבמה!`,
-        timestamp: serverTimestamp(),
-      });
-      toast.success(`עברנו לפריט: ${nextItem.title}`);
-    } else {
-      // No more items - end auction
-      await update(ref(db, `auctions/${auctionId}`), {
-        status: 'ended',
-        currentItemId: null,
-      });
-      await push(ref(db, `live_chat/${auctionId}`), {
-        senderId: 'system',
-        senderName: 'מערכת',
-        senderRole: 'system',
-        message: 'המכרז הסתיים! תודה לכל המשתתפים.',
-        timestamp: serverTimestamp(),
-      });
-      toast.success('המכרז הסתיים!');
-    }
+      const fn = httpsCallable(fns, 'closeItemAndAdvance');
+      await fn({ auctionId, markAsSold });
+      toast.success(markAsSold ? 'פריט נמכר — עברנו לבא' : 'פריט לא נמכר — עברנו לבא');
+    } catch (err: any) {
+      toast.error(err.message || 'שגיאה בביצוע הפעולה');
     } finally {
       setIsAdvancing(false);
     }
   };
 
   const advanceRound = async () => {
-    if (!auction || auction.currentRound >= 3) return;
-    const nextRound = (auction.currentRound + 1) as 1 | 2 | 3;
-    const roundKey = `round${nextRound}` as 'round1' | 'round2' | 'round3';
-    await update(ref(db, `auctions/${auctionId}`), {
-      currentRound: nextRound,
-      timerEndsAt: Date.now() + auction.settings[roundKey].timerSeconds * 1000,
-      timerDuration: auction.settings[roundKey].timerSeconds,
-    });
-    await push(ref(db, `live_chat/${auctionId}`), {
-      senderId: 'system',
-      senderName: 'מערכת',
-      senderRole: 'system',
-      message: `עוברים לסיבוב ${nextRound} — מדרגת קפיצה: ${formatPrice(auction.settings[roundKey].increment)}`,
-      timestamp: serverTimestamp(),
-    });
-    toast.success(`עברנו לסיבוב ${nextRound}`);
+    if (!auctionId || isAdvancing) return;
+    setIsAdvancing(true);
+    try {
+      const fn = httpsCallable(fns, 'advanceAuctionRound');
+      await fn({ auctionId });
+      toast.success('עברנו לסיבוב הבא');
+    } catch (err: any) {
+      toast.error(err.message || 'שגיאה');
+    } finally {
+      setIsAdvancing(false);
+    }
   };
 
   const sendChatMsg = async () => {

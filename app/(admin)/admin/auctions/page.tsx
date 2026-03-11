@@ -1,10 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { ref, update, get, query, orderByChild, equalTo, push, serverTimestamp } from 'firebase/database';
-import { db } from '@/lib/firebase';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useAllAuctions } from '@/lib/hooks';
-import { Auction } from '@/lib/types';
 import Navbar from '@/components/ui/Navbar';
 import { AuctionStatusBadge } from '@/components/ui/StatusBadge';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
@@ -13,54 +11,14 @@ import toast from 'react-hot-toast';
 export default function AdminAuctionsPage() {
   const { auctions, loading } = useAllAuctions();
 
-  const goLive = async (auctionId: string, auction: Auction) => {
-    const hasLive = auctions.some((a) => a.status === 'live');
-    if (hasLive) {
-      toast.error('יש כבר מכרז חי! סיים אותו קודם.');
-      return;
+  const goLive = async (auctionId: string) => {
+    try {
+      const fn = httpsCallable(getFunctions(), 'startAuctionLive');
+      await fn({ auctionId });
+      toast.success('המכרז עלה לאוויר!');
+    } catch (err: any) {
+      toast.error(err.message || 'שגיאה בהפעלת המכרז');
     }
-
-    // Get auction items to find first
-    const itemsSnap = await get(
-      query(ref(db, 'auction_items'), orderByChild('auctionId'), equalTo(auctionId))
-    );
-
-    if (!itemsSnap.exists()) {
-      toast.error('אין פריטים במכרז! הוסף פריטים תחילה.');
-      return;
-    }
-
-    const allItems = Object.entries(itemsSnap.val())
-      .map(([id, data]: [string, any]) => ({ id, ...data }))
-      .sort((a: any, b: any) => a.order - b.order);
-
-    const firstItem = allItems[0] as any;
-
-    // Activate first item
-    await update(ref(db, `auction_items/${firstItem.id}`), {
-      status: 'active',
-      currentBid: firstItem.preBidPrice || firstItem.openingPrice,
-    });
-
-    // Start auction
-    await update(ref(db, `auctions/${auctionId}`), {
-      status: 'live',
-      currentItemId: firstItem.id,
-      currentRound: 1,
-      timerEndsAt: Date.now() + auction.settings.round1.timerSeconds * 1000,
-      timerDuration: auction.settings.round1.timerSeconds,
-    });
-
-    // System message
-    await push(ref(db, `live_chat/${auctionId}`), {
-      senderId: 'system',
-      senderName: 'מערכת',
-      senderRole: 'system',
-      message: `המכרז התחיל! הפריט הראשון: "${firstItem.title}"`,
-      timestamp: serverTimestamp(),
-    });
-
-    toast.success('המכרז עלה לאוויר!');
   };
 
   return (
@@ -92,7 +50,7 @@ export default function AdminAuctionsPage() {
                 </div>
                 <div className="flex gap-2">
                   {auction.status === 'published' && (
-                    <button onClick={() => goLive(auction.id, auction)} className="bg-live-dot text-white px-3 py-1.5 rounded-lg text-sm font-semibold">
+                    <button onClick={() => goLive(auction.id)} className="bg-live-dot text-white px-3 py-1.5 rounded-lg text-sm font-semibold">
                       הפעל לייב
                     </button>
                   )}
