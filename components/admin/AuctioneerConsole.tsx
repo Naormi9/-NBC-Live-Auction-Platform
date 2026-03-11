@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ref, update, push, serverTimestamp, get } from 'firebase/database';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
@@ -21,6 +21,75 @@ export default function AuctioneerConsole() {
   const bids = useBidHistory(auctionId, item?.id || null);
   const messages = useLiveChat(auctionId);
   const [chatMessage, setChatMessage] = useState('');
+  const autoAdvanceRef = useRef(false);
+
+  // Auto-advance when timer expires (client-side, runs every 5s)
+  // Fills the gap since Cloud Scheduler only runs every 1 minute
+  useEffect(() => {
+    if (!auction || auction.status !== 'live' || !item || !auctionId) return;
+
+    const interval = setInterval(async () => {
+      const now = Date.now();
+      if (!auction.timerEndsAt || auction.timerEndsAt > now) return;
+      if (item.status !== 'active') return;
+      if (autoAdvanceRef.current) return;
+
+      autoAdvanceRef.current = true;
+      try {
+        if (auction.currentRound < 3) {
+          const nextRound = (auction.currentRound + 1) as 2 | 3;
+          const roundKey = `round${nextRound}` as 'round2' | 'round3';
+          await update(ref(db, `auctions/${auctionId}`), {
+            currentRound: nextRound,
+            timerEndsAt: Date.now() + auction.settings[roundKey].timerSeconds * 1000,
+            timerDuration: auction.settings[roundKey].timerSeconds,
+          });
+          await push(ref(db, `live_chat/${auctionId}`), {
+            senderId: 'system',
+            senderName: 'מערכת',
+            senderRole: 'system',
+            message: `עוברים לסיבוב ${nextRound}`,
+            timestamp: serverTimestamp(),
+          });
+        } else {
+          // Round 3 expired — mark item and find next
+          const hasBidder = item.currentBidderId !== null;
+          const itemUpdate: Record<string, any> = {
+            status: hasBidder && item.currentBid > 0 ? 'sold' : 'unsold',
+          };
+          if (hasBidder && item.currentBid > 0) {
+            itemUpdate.soldAt = Date.now();
+            itemUpdate.soldPrice = item.currentBid;
+          }
+          await update(ref(db, `auction_items/${item.id}`), itemUpdate);
+
+          // Find next pending item
+          const nextItem = items.find((i) => i.order > item.order && i.status === 'pending');
+          if (nextItem) {
+            await update(ref(db, `auction_items/${nextItem.id}`), {
+              status: 'active',
+              currentBid: nextItem.preBidPrice || nextItem.openingPrice,
+            });
+            await update(ref(db, `auctions/${auctionId}`), {
+              currentItemId: nextItem.id,
+              currentRound: 1,
+              timerEndsAt: Date.now() + auction.settings.round1.timerSeconds * 1000,
+              timerDuration: auction.settings.round1.timerSeconds,
+            });
+          } else {
+            await update(ref(db, `auctions/${auctionId}`), {
+              status: 'ended',
+              currentItemId: null,
+            });
+          }
+        }
+      } finally {
+        autoAdvanceRef.current = false;
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [auction?.timerEndsAt, auction?.currentRound, auction?.status, item?.status, item?.id, auctionId, items]);
 
   if (liveLoading) return <LoadingSpinner size="lg" />;
 
@@ -32,6 +101,32 @@ export default function AuctioneerConsole() {
       </div>
     );
   }
+
+  const activateFirstItem = async () => {
+    const firstPending = items.find((i) => i.status === 'pending');
+    if (!firstPending) {
+      toast.error('אין פריטים ממתינים');
+      return;
+    }
+    await update(ref(db, `auction_items/${firstPending.id}`), {
+      status: 'active',
+      currentBid: firstPending.preBidPrice || firstPending.openingPrice,
+    });
+    await update(ref(db, `auctions/${auctionId}`), {
+      currentItemId: firstPending.id,
+      currentRound: 1,
+      timerEndsAt: Date.now() + auction.settings.round1.timerSeconds * 1000,
+      timerDuration: auction.settings.round1.timerSeconds,
+    });
+    await push(ref(db, `live_chat/${auctionId}`), {
+      senderId: 'system',
+      senderName: 'מערכת',
+      senderRole: 'system',
+      message: `הפריט "${firstPending.title}" עלה לבמה!`,
+      timestamp: serverTimestamp(),
+    });
+    toast.success(`הפריט הראשון הופעל: ${firstPending.title}`);
+  };
 
   const addTime = async (seconds: number) => {
     const newEnd = (auction.timerEndsAt || Date.now()) + seconds * 1000;
@@ -208,7 +303,15 @@ export default function AuctioneerConsole() {
               </div>
             </>
           ) : (
-            <div className="text-text-secondary">ממתין...</div>
+            <div className="text-center py-8">
+              <p className="text-text-secondary mb-4">המכרז חי אך אין פריט פעיל</p>
+              <button
+                onClick={activateFirstItem}
+                className="btn-accent px-6 py-3 rounded-xl text-lg font-bold"
+              >
+                ▶ התחל — פריט ראשון
+              </button>
+            </div>
           )}
         </div>
 

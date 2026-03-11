@@ -1,8 +1,8 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useState } from 'react';
-import { ref, set, serverTimestamp } from 'firebase/database';
+import { useState, useEffect } from 'react';
+import { ref, set, onValue, serverTimestamp } from 'firebase/database';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { useAuction, useCatalog, useRegistration } from '@/lib/hooks';
@@ -21,6 +21,30 @@ export default function AuctionCatalogPage() {
   const { registered } = useRegistration(auctionId, user?.uid || null);
   const [preBidItem, setPreBidItem] = useState<string | null>(null);
   const [preBidAmount, setPreBidAmount] = useState('');
+  // Track user's existing pre-bids: { [itemId]: amount }
+  const [userPreBids, setUserPreBids] = useState<Record<string, number>>({});
+
+  // Listen to current user's pre-bids for this auction
+  useEffect(() => {
+    if (!user || !auctionId) return;
+    const preBidsRef = ref(db, `pre_bids/${auctionId}`);
+    const unsub = onValue(preBidsRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.val();
+        const bids: Record<string, number> = {};
+        for (const [itemId, itemBids] of Object.entries(data)) {
+          const userBid = (itemBids as any)[user.uid];
+          if (userBid) {
+            bids[itemId] = userBid.amount;
+          }
+        }
+        setUserPreBids(bids);
+      } else {
+        setUserPreBids({});
+      }
+    });
+    return () => unsub();
+  }, [user?.uid, auctionId]);
 
   const handleRegister = async () => {
     if (!user) {
@@ -35,11 +59,20 @@ export default function AuctionCatalogPage() {
     toast.success('נרשמת למכרז בהצלחה!');
   };
 
-  const handlePreBid = async (itemId: string) => {
+  const handlePreBid = async (itemId: string, openingPrice: number) => {
     if (!user || !preBidAmount) return;
     const amount = parseInt(preBidAmount);
     if (isNaN(amount) || amount <= 0) {
       toast.error('הכנס סכום תקין');
+      return;
+    }
+    if (amount <= openingPrice) {
+      toast.error(`הצעה חייבת להיות גבוהה ממחיר הפתיחה (${formatPrice(openingPrice)})`);
+      return;
+    }
+    const existingBid = userPreBids[itemId];
+    if (existingBid && amount <= existingBid) {
+      toast.error(`הצעה חדשה חייבת להיות גבוהה מההצעה הקיימת שלך (${formatPrice(existingBid)})`);
       return;
     }
     await set(ref(db, `pre_bids/${auctionId}/${itemId}/${user.uid}`), {
@@ -125,6 +158,14 @@ export default function AuctionCatalogPage() {
                   <span className="font-bold text-bid-price">{formatPrice(item.openingPrice)}</span>
                 </div>
 
+                {/* Show user's existing pre-bid */}
+                {userPreBids[item.id] && (
+                  <div className="flex items-center justify-between text-sm bg-accent/10 border border-accent/20 rounded-lg px-3 py-2">
+                    <span className="text-text-secondary">ההצעה שלך</span>
+                    <span className="font-bold text-accent">{formatPrice(userPreBids[item.id])}</span>
+                  </div>
+                )}
+
                 {/* Pre-bid button */}
                 {auction.preBidsEnabled && registered && item.status === 'pending' && (
                   <>
@@ -134,12 +175,12 @@ export default function AuctionCatalogPage() {
                           type="number"
                           value={preBidAmount}
                           onChange={(e) => setPreBidAmount(e.target.value)}
-                          placeholder="סכום הצעה"
+                          placeholder={userPreBids[item.id] ? `מעל ${formatPrice(userPreBids[item.id])}` : 'סכום הצעה'}
                           className="flex-1 bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent"
                           dir="ltr"
                         />
                         <button
-                          onClick={() => handlePreBid(item.id)}
+                          onClick={() => handlePreBid(item.id, item.openingPrice)}
                           className="btn-accent px-3 py-2 rounded-lg text-sm"
                         >
                           שלח
@@ -153,10 +194,10 @@ export default function AuctionCatalogPage() {
                       </div>
                     ) : (
                       <button
-                        onClick={() => setPreBidItem(item.id)}
+                        onClick={() => { setPreBidItem(item.id); setPreBidAmount(''); }}
                         className="w-full btn-dark py-2 rounded-lg text-sm mt-2"
                       >
-                        הצעה מוקדמת
+                        {userPreBids[item.id] ? 'עדכן הצעה מוקדמת' : 'הצעה מוקדמת'}
                       </button>
                     )}
                   </>

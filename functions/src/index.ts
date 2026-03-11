@@ -5,3 +5,4 @@ admin.initializeApp();
 export { processBid } from './processBid';
 export { advanceRoundOrItem } from './advanceItem';
 export { timerTick } from './timerManager';
+export { onPreBidCreated } from './preBidAggregator';

@@ -1,7 +1,9 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useCurrentItem, useBidHistory, useLiveChat, useCatalog, useViewerCount, useTimer, useRegistration, useLiveAuction, useAuction } from '@/lib/hooks';
+import { trackViewer } from '@/lib/presence';
 import AuctionTimer from './AuctionTimer';
 import BidButton from './BidButton';
 import CurrentItem from './CurrentItem';
@@ -21,6 +23,13 @@ export default function LiveRoom() {
   const viewerCount = useViewerCount(auctionId);
   const secondsLeft = useTimer(auctionId);
   const { registered } = useRegistration(auctionId, user?.uid || null);
+
+  // Track viewer presence
+  useEffect(() => {
+    if (!auctionId) return;
+    const unsub = trackViewer(auctionId);
+    return () => unsub();
+  }, [auctionId]);
 
   if (liveLoading || itemLoading) {
     return (
