@@ -3,7 +3,7 @@ import * as admin from 'firebase-admin';
 
 const db = admin.database();
 
-export const processBid = functions.database
+export const processBid = functions.region('europe-west1').database
   .ref('/pending_bids/{bidId}')
   .onCreate(async (snapshot, context) => {
     const bid = snapshot.val();

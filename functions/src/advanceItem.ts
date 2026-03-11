@@ -5,7 +5,7 @@ import * as admin from 'firebase-admin';
 
 const db = admin.database();
 
-export const advanceRoundOrItem = functions.https.onCall(async (data, context) => {
+export const advanceRoundOrItem = functions.region('europe-west1').https.onCall(async (data, context) => {
   // Auth gate — only admin or house_manager may advance
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'Must be logged in');

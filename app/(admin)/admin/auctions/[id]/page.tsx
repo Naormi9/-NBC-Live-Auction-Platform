@@ -20,7 +20,7 @@ export default function EditAuctionPage() {
 
   const startLive = async () => {
     try {
-      const fn = httpsCallable(getFunctions(), 'startAuctionLive');
+      const fn = httpsCallable(getFunctions(undefined, 'europe-west1'), 'startAuctionLive');
       await fn({ auctionId });
       toast.success('המכרז התחיל!');
     } catch (err: any) {
@@ -30,7 +30,7 @@ export default function EditAuctionPage() {
 
   const handleEndAuction = async () => {
     try {
-      const fn = httpsCallable(getFunctions(), 'endAuction');
+      const fn = httpsCallable(getFunctions(undefined, 'europe-west1'), 'endAuction');
       await fn({ auctionId });
       toast.success('המכרז הסתיים');
     } catch (err: any) {

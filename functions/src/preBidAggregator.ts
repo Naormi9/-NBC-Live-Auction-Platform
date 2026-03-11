@@ -4,7 +4,7 @@ import * as admin from 'firebase-admin';
 const db = admin.database();
 
 // When a pre-bid is created/updated, find the max pre-bid and update the item's preBidPrice
-export const onPreBidCreated = functions.database
+export const onPreBidCreated = functions.region('europe-west1').database
   .ref('/pre_bids/{auctionId}/{itemId}/{userId}')
   .onWrite(async (change, context) => {
     const { auctionId, itemId } = context.params;

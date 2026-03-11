@@ -13,7 +13,7 @@ export default function AdminAuctionsPage() {
 
   const goLive = async (auctionId: string) => {
     try {
-      const fn = httpsCallable(getFunctions(), 'startAuctionLive');
+      const fn = httpsCallable(getFunctions(undefined, 'europe-west1'), 'startAuctionLive');
       await fn({ auctionId });
       toast.success('המכרז עלה לאוויר!');
     } catch (err: any) {
