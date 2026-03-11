@@ -3,9 +3,11 @@ import * as admin from 'firebase-admin';
 
 const db = admin.database();
 
-// Runs every 5 seconds to check live auctions for expired timers
+// Runs every 1 minute to check live auctions for expired timers
+// Firebase Cloud Scheduler minimum is 1 minute
+// Client-side auto-advance in AuctioneerConsole fills the gap with 5s checks
 export const timerTick = functions.pubsub
-  .schedule('every 5 seconds')
+  .schedule('every 1 minutes')
   .onRun(async () => {
     const auctionsSnap = await db.ref('/auctions')
       .orderByChild('status')

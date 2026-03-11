@@ -1,14 +1,27 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { useAllAuctions } from '@/lib/hooks';
 import Navbar from '@/components/ui/Navbar';
 import { AuctionStatusBadge } from '@/components/ui/StatusBadge';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 export default function AdminDashboard() {
-  const { profile } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const { auctions } = useAllAuctions();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!authLoading && (!user || (profile && profile.role === 'participant'))) {
+      router.push('/login');
+    }
+  }, [user, profile, authLoading, router]);
+
+  if (authLoading) return <><Navbar /><LoadingSpinner size="lg" /></>;
+  if (!user) return null;
 
   const liveCount = auctions.filter((a) => a.status === 'live').length;
   const publishedCount = auctions.filter((a) => a.status === 'published').length;

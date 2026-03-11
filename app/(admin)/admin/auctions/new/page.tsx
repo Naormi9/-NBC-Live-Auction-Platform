@@ -1,12 +1,31 @@
 'use client';
 
 import { useState } from 'react';
-import { ref, push, set, serverTimestamp } from 'firebase/database';
-import { db } from '@/lib/firebase';
+import { ref, push, set, update, serverTimestamp } from 'firebase/database';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/components/ui/Navbar';
 import { DEFAULT_AUCTION_SETTINGS } from '@/lib/auction-utils';
 import toast from 'react-hot-toast';
+
+interface ItemForm {
+  title: string; make: string; model: string; year: string; km: string;
+  color: string; engineCC: string; owners: string; openingPrice: string;
+  registrationDate: string; description: string; files: FileList | null;
+}
+
+const uploadImages = async (files: FileList, itemId: string): Promise<string[]> => {
+  const urls: string[] = [];
+  for (let i = 0; i < Math.min(files.length, 5); i++) {
+    const file = files[i];
+    const fileRef = storageRef(storage, `auction_items/${itemId}/${Date.now()}_${file.name}`);
+    await uploadBytes(fileRef, file);
+    const url = await getDownloadURL(fileRef);
+    urls.push(url);
+  }
+  return urls;
+};
 
 export default function NewAuctionPage() {
   const router = useRouter();
@@ -27,21 +46,17 @@ export default function NewAuctionPage() {
   const [hardClose, setHardClose] = useState(30);
 
   // Items
-  const [items, setItems] = useState<Array<{
-    title: string; make: string; model: string; year: string; km: string;
-    color: string; engineCC: string; owners: string; openingPrice: string;
-    registrationDate: string; description: string;
-  }>>([]);
+  const [items, setItems] = useState<ItemForm[]>([]);
 
   const addItem = () => {
     setItems([...items, {
       title: '', make: '', model: '', year: '', km: '',
       color: '', engineCC: '', owners: '1', openingPrice: '',
-      registrationDate: '', description: '',
+      registrationDate: '', description: '', files: null,
     }]);
   };
 
-  const updateItem = (index: number, field: string, value: string) => {
+  const updateItem = (index: number, field: string, value: any) => {
     const updated = [...items];
     (updated[index] as any)[field] = value;
     setItems(updated);
@@ -112,6 +127,12 @@ export default function NewAuctionPage() {
           owners: parseInt(item.owners) || 1,
           registrationDate: item.registrationDate,
         });
+
+        // Upload images if provided
+        if (item.files && item.files.length > 0) {
+          const imageUrls = await uploadImages(item.files, itemRef.key!);
+          await update(ref(db, `auction_items/${itemRef.key}`), { images: imageUrls });
+        }
       }
 
       toast.success('המכרז נוצר בהצלחה!');
@@ -234,6 +255,20 @@ export default function NewAuctionPage() {
                   <Input label="מחיר פתיחה (₪)" value={item.openingPrice} onChange={(v) => updateItem(i, 'openingPrice', v)} type="number" />
                 </div>
                 <Input label="תיאור" value={item.description} onChange={(v) => updateItem(i, 'description', v)} full />
+                <div className="col-span-2">
+                  <label className="text-xs text-text-secondary">תמונות רכב (עד 5)</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => {
+                      if (e.target.files) {
+                        updateItem(i, 'files', e.target.files);
+                      }
+                    }}
+                    className="w-full bg-bg-primary border border-border rounded px-3 py-2 text-white text-sm file:mr-3 file:bg-accent/20 file:text-accent file:border-0 file:rounded file:px-2 file:py-1 file:text-xs"
+                  />
+                </div>
               </div>
             ))}
           </div>

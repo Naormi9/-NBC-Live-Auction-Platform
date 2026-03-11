@@ -132,12 +132,17 @@ export function useCatalog(auctionId: string | null) {
 
   useEffect(() => {
     if (!auctionId) { setItems([]); setLoading(false); return; }
-    const itemsRef = ref(db, 'auction_items');
-    const unsub = onValue(itemsRef, (snap) => {
+
+    const itemsQuery = query(
+      ref(db, 'auction_items'),
+      orderByChild('auctionId'),
+      equalTo(auctionId)
+    );
+
+    const unsub = onValue(itemsQuery, (snap) => {
       if (snap.exists()) {
         const data = snap.val();
         const list = Object.entries(data)
-          .filter(([, v]: [string, any]) => v.auctionId === auctionId)
           .map(([k, v]: [string, any]) => ({ ...v, id: k })) as AuctionItem[];
         list.sort((a, b) => a.order - b.order);
         setItems(list);
