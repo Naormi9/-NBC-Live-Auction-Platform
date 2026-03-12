@@ -107,6 +107,7 @@ export async function activateNextItem(auctionId: string): Promise<string> {
 
   const auctionSnap = await get(ref(db, `auctions/${auctionId}`));
   const auction = auctionSnap.val();
+  if (!auction || auction.status !== 'live') throw new Error('המכרז לא חי');
   const settings = mergeSettings(auction?.settings);
 
   const nextItem = pendingItems[0] as any;
@@ -222,6 +223,7 @@ export async function closeItemAndAdvance(auctionId: string, markAsSold: boolean
 export async function pauseTimer(auctionId: string): Promise<string> {
   const auctionSnap = await get(ref(db, `auctions/${auctionId}`));
   const auction = auctionSnap.val();
+  if (!auction) throw new Error('מכרז לא נמצא');
   const now = Date.now();
   const remaining = Math.max(0, ((auction?.timerEndsAt || now) - now) / 1000);
   await update(ref(db, `auctions/${auctionId}`), {
@@ -234,7 +236,8 @@ export async function pauseTimer(auctionId: string): Promise<string> {
 export async function resumeTimer(auctionId: string): Promise<string> {
   const auctionSnap = await get(ref(db, `auctions/${auctionId}`));
   const auction = auctionSnap.val();
-  const remaining = auction?.remainingOnPause || 30;
+  if (!auction) throw new Error('מכרז לא נמצא');
+  const remaining = auction.remainingOnPause || 30;
   const now = Date.now();
   await update(ref(db, `auctions/${auctionId}`), {
     timerPaused: false,
@@ -246,9 +249,10 @@ export async function resumeTimer(auctionId: string): Promise<string> {
 export async function addTime(auctionId: string, seconds: number): Promise<string> {
   const auctionSnap = await get(ref(db, `auctions/${auctionId}`));
   const auction = auctionSnap.val();
+  if (!auction) throw new Error('מכרז לא נמצא');
   const now = Date.now();
 
-  if (auction?.timerPaused) {
+  if (auction.timerPaused) {
     const remaining = (auction.remainingOnPause || 0) + seconds;
     await update(ref(db, `auctions/${auctionId}`), { remainingOnPause: remaining });
   } else {

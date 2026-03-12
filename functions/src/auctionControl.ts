@@ -22,7 +22,8 @@ function mergeSettings(settings: any) {
 
 // ─── CORS + Auth helpers ────────────────────────────────────
 function setCors(res: functions.Response) {
-  res.set('Access-Control-Allow-Origin', '*');
+  const allowedOrigin = process.env.CORS_ORIGIN || '*';
+  res.set('Access-Control-Allow-Origin', allowedOrigin);
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.set('Access-Control-Max-Age', '3600');
@@ -42,7 +43,7 @@ async function verifyAuth(req: functions.Request): Promise<admin.auth.DecodedIdT
   if (!authHeader?.startsWith('Bearer ')) {
     throw new Error('Missing or invalid Authorization header');
   }
-  const token = authHeader.split('Bearer ')[1];
+  const token = authHeader.slice(7).trim();
   return admin.auth().verifyIdToken(token);
 }
 
@@ -131,7 +132,7 @@ export const startAuctionLive = functions.region('europe-west1').https.onRequest
     await verifyAdminRole(decoded.uid);
 
     const { auctionId } = req.body;
-    if (!auctionId) return sendError(res, 400, 'Missing auctionId');
+    if (!auctionId || typeof auctionId !== 'string') return sendError(res, 400, 'Missing or invalid auctionId');
 
     const auctionRef = db.ref(`/auctions/${auctionId}`);
     const auctionSnap = await auctionRef.once('value');
@@ -197,7 +198,7 @@ export const activateFirstItem = functions.region('europe-west1').https.onReques
     await verifyAdminRole(decoded.uid);
 
     const { auctionId } = req.body;
-    if (!auctionId) return sendError(res, 400, 'Missing auctionId');
+    if (!auctionId || typeof auctionId !== 'string') return sendError(res, 400, 'Missing or invalid auctionId');
 
     const auction = await getLiveAuction(auctionId);
 
@@ -248,7 +249,7 @@ export const advanceAuctionRound = functions.region('europe-west1').https.onRequ
     await verifyAdminRole(decoded.uid);
 
     const { auctionId } = req.body;
-    if (!auctionId) return sendError(res, 400, 'Missing auctionId');
+    if (!auctionId || typeof auctionId !== 'string') return sendError(res, 400, 'Missing or invalid auctionId');
 
     const auction = await getLiveAuction(auctionId);
     if (auction.currentRound >= 3) return sendOk(res, { action: 'already_at_round_3' });
@@ -335,7 +336,7 @@ export const adjustAuctionTimer = functions.region('europe-west1').https.onReque
       return sendOk(res, { action: 'paused' });
     }
 
-    if (action === 'add' && typeof seconds === 'number' && seconds > 0) {
+    if (action === 'add' && typeof seconds === 'number' && seconds > 0 && seconds <= 3600) {
       const currentEnd = auction.timerEndsAt || now;
       const newEnd = Math.max(currentEnd, now) + seconds * 1000;
       await db.ref(`/auctions/${auctionId}`).update({ timerEndsAt: newEnd });
@@ -355,7 +356,7 @@ export const endAuction = functions.region('europe-west1').https.onRequest(async
     await verifyAdminRole(decoded.uid);
 
     const { auctionId } = req.body;
-    if (!auctionId) return sendError(res, 400, 'Missing auctionId');
+    if (!auctionId || typeof auctionId !== 'string') return sendError(res, 400, 'Missing or invalid auctionId');
 
     await getLiveAuction(auctionId);
 

@@ -27,9 +27,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
-        const snap = await get(ref(db, `users/${firebaseUser.uid}`));
-        if (snap.exists()) {
-          setProfile(snap.val() as UserProfile);
+        try {
+          const snap = await get(ref(db, `users/${firebaseUser.uid}`));
+          if (snap.exists()) {
+            setProfile(snap.val() as UserProfile);
+          } else {
+            setProfile(null);
+          }
+        } catch (err) {
+          console.error('Failed to fetch user profile:', err);
+          setProfile(null);
         }
       } else {
         setProfile(null);

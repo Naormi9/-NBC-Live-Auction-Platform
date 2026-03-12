@@ -130,9 +130,9 @@ export default function AuctioneerConsole() {
   };
 
   const sendChatMsg = async () => {
-    if (!chatMessage.trim()) return;
+    if (!chatMessage.trim() || !user) return;
     await push(ref(db, `live_chat/${auctionId}`), {
-      senderId: user?.uid || 'auctioneer',
+      senderId: user.uid,
       senderName: profile?.displayName || 'כרוז',
       senderRole: 'auctioneer',
       message: chatMessage.trim(),
@@ -250,7 +250,7 @@ export default function AuctioneerConsole() {
               <div className="mt-3 space-y-1">
                 <h3 className="text-xs text-text-secondary">הצעות אחרונות</h3>
                 {bids.slice(0, 5).map((bid, i) => (
-                  <div key={i} className="flex justify-between text-sm bg-bg-elevated/50 rounded px-2 py-1">
+                  <div key={`bid-${bid.userId}-${bid.amount}`} className="flex justify-between text-sm bg-bg-elevated/50 rounded px-2 py-1">
                     <span className="text-text-secondary">{bid.userDisplayName}</span>
                     <span className="font-bold">{formatPrice(bid.amount)}</span>
                   </div>
@@ -402,7 +402,7 @@ export default function AuctioneerConsole() {
           {/* Chat messages */}
           <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
             {messages.map((msg, i) => (
-              <div key={i} className={`text-sm rounded px-2 py-1 ${
+              <div key={`msg-${msg.senderId}-${msg.timestamp}-${i}`} className={`text-sm rounded px-2 py-1 ${
                 msg.senderRole === 'system' ? 'bg-accent/10 text-accent' :
                 msg.senderRole === 'auctioneer' ? 'bg-bid-price/10 text-bid-price' :
                 'bg-bg-elevated/50'

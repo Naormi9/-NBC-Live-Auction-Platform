@@ -65,7 +65,7 @@ export interface PendingBid {
   userId: string;
   userDisplayName: string;
   amount: number;
-  timestamp: number | object;
+  timestamp: number;
   round: number;
 }
 
@@ -73,7 +73,7 @@ export interface PreBid {
   userId: string;
   userDisplayName: string;
   amount: number;
-  timestamp: number | object;
+  timestamp: number;
 }
 
 export interface BidHistoryEntry {

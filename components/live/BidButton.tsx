@@ -17,7 +17,7 @@ interface BidButtonProps {
 export default function BidButton({ auction, item, registered }: BidButtonProps) {
   const { user } = useAuth();
   const [submitting, setSubmitting] = useState(false);
-  const [justOutbid, setJustOutbid] = useState(false);
+  
 
   if (!user) {
     return (
@@ -86,7 +86,7 @@ export default function BidButton({ auction, item, registered }: BidButtonProps)
       onClick={handleBid}
       disabled={submitting}
       className={`w-full py-4 rounded-xl font-bold text-lg transition-smooth
-        ${justOutbid ? 'bg-accent border-2 border-timer-red animate-pulse' : 'bg-accent hover:bg-accent-hover'}
+        bg-accent hover:bg-accent-hover
         text-white disabled:opacity-50`}
     >
       {submitting ? 'שולח...' : `הצע ${formatPrice(nextBid)} ↑`}

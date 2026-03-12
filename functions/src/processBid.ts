@@ -15,6 +15,15 @@ export const processBid = functions.region('europe-west1').database
     const bid = snapshot.val();
     if (!bid) return;
 
+    // Validate required bid fields
+    if (typeof bid.itemId !== 'string' || typeof bid.auctionId !== 'string' ||
+        typeof bid.userId !== 'string' || typeof bid.amount !== 'number' ||
+        bid.amount <= 0 || !bid.userDisplayName) {
+      console.error('Invalid bid data:', JSON.stringify(bid));
+      await snapshot.ref.remove();
+      return;
+    }
+
     const itemRef = db.ref(`/auction_items/${bid.itemId}`);
     const auctionRef = db.ref(`/auctions/${bid.auctionId}`);
 
