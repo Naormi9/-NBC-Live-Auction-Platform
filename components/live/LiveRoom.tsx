@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useCurrentItem, useBidHistory, useLiveChat, useCatalog, useViewerCount, useTimer, useRegistration, useLiveAuction, useAuction } from '@/lib/hooks';
 import { trackViewer } from '@/lib/presence';
-import { playOutbidSound, playTimerWarningSound, playItemSoldSound } from '@/lib/sounds';
+import { playOutbidSound, playTimerWarningSound, playTimer10SecSound, playTimerEndSound, playItemSoldSound } from '@/lib/sounds';
 import AuctionTimer from './AuctionTimer';
 import BidButton from './BidButton';
 import CurrentItem from './CurrentItem';
@@ -28,7 +28,9 @@ export default function LiveRoom() {
 
   const prevBidderRef = useRef<string | null>(null);
   const prevItemStatusRef = useRef<string | null>(null);
+  const timer10Fired = useRef(false);
   const timerWarningFired = useRef(false);
+  const timerEndFired = useRef(false);
 
   // Track viewer presence
   useEffect(() => {
@@ -58,15 +60,39 @@ export default function LiveRoom() {
     }
   }, [item?.status]);
 
-  // Sound: timer warning (< 5 seconds)
+  // Sound: timer warnings (10 seconds, 5 seconds, end)
   useEffect(() => {
-    if (secondsLeft > 5 || secondsLeft < 0) {
+    if (secondsLeft < 0) {
+      // Paused — reset all
+      timer10Fired.current = false;
       timerWarningFired.current = false;
+      timerEndFired.current = false;
       return;
     }
-    if (secondsLeft <= 5 && secondsLeft > 0 && !timerWarningFired.current) {
+
+    if (secondsLeft > 10) {
+      timer10Fired.current = false;
+      timerWarningFired.current = false;
+      timerEndFired.current = false;
+      return;
+    }
+
+    // 10 seconds warning
+    if (secondsLeft <= 10 && secondsLeft > 5 && !timer10Fired.current) {
+      timer10Fired.current = true;
+      playTimer10SecSound();
+    }
+
+    // 5 seconds warning
+    if (secondsLeft <= 5 && secondsLeft > 0.5 && !timerWarningFired.current) {
       timerWarningFired.current = true;
       playTimerWarningSound();
+    }
+
+    // Timer end
+    if (secondsLeft <= 0.5 && secondsLeft >= 0 && !timerEndFired.current) {
+      timerEndFired.current = true;
+      playTimerEndSound();
     }
   }, [secondsLeft]);
 

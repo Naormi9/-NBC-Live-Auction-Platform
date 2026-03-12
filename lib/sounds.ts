@@ -39,9 +39,20 @@ export function playOutbidSound() {
   setTimeout(() => playTone(350, 0.25, 'triangle', 0.3), 150);
 }
 
+export function playTimer10SecSound() {
+  // Soft single tone at 10 seconds
+  playTone(660, 0.15, 'sine', 0.15);
+}
+
 export function playTimerWarningSound() {
-  // Short beep
+  // Short beep at 5 seconds
   playTone(880, 0.1, 'square', 0.15);
+}
+
+export function playTimerEndSound() {
+  // Double low beep — time's up
+  playTone(330, 0.2, 'square', 0.2);
+  setTimeout(() => playTone(330, 0.3, 'square', 0.2), 250);
 }
 
 export function playItemSoldSound() {

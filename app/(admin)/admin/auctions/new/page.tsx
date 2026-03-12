@@ -66,15 +66,18 @@ export default function NewAuctionPage() {
     setItems(items.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title || !date || !time) {
-      toast.error('מלא את כל השדות הנדרשים');
+  const saveAuction = async (status: 'draft' | 'published') => {
+    if (!title) {
+      toast.error('הכנס שם מכרז');
+      return;
+    }
+    if (status === 'published' && (!date || !time)) {
+      toast.error('מלא תאריך ושעה לפני פרסום');
       return;
     }
     setLoading(true);
     try {
-      const scheduledAt = new Date(`${date}T${time}`).getTime();
+      const scheduledAt = date && time ? new Date(`${date}T${time}`).getTime() : 0;
       const auctionRef = push(ref(db, 'auctions'));
       const auctionId = auctionRef.key!;
 
@@ -84,7 +87,7 @@ export default function NewAuctionPage() {
         houseId: 'default',
         houseName: houseName || 'NBC מכרזים',
         scheduledAt,
-        status: 'published',
+        status,
         preBidsEnabled: preBids,
         currentItemId: null,
         currentRound: 1,
@@ -135,13 +138,18 @@ export default function NewAuctionPage() {
         }
       }
 
-      toast.success('המכרז נוצר בהצלחה!');
+      toast.success(status === 'draft' ? 'הטיוטה נשמרה!' : 'המכרז נוצר ופורסם!');
       router.push('/admin/auctions');
     } catch (err) {
       toast.error('שגיאה ביצירת המכרז');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await saveAuction('published');
   };
 
   return (
@@ -273,13 +281,23 @@ export default function NewAuctionPage() {
             ))}
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full btn-accent py-4 rounded-xl text-lg font-bold disabled:opacity-50"
-          >
-            {loading ? 'יוצר מכרז...' : 'צור מכרז'}
-          </button>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => saveAuction('draft')}
+              className="flex-1 btn-dark py-4 rounded-xl text-lg font-bold disabled:opacity-50 border border-border"
+            >
+              {loading ? 'שומר...' : 'שמור כטיוטה'}
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 btn-accent py-4 rounded-xl text-lg font-bold disabled:opacity-50"
+            >
+              {loading ? 'יוצר מכרז...' : 'צור ופרסם'}
+            </button>
+          </div>
         </form>
       </div>
     </div>

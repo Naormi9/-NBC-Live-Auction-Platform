@@ -5,7 +5,7 @@ import { ref, push, serverTimestamp } from 'firebase/database';
 import { db } from '@/lib/firebase';
 import * as actions from '@/lib/auction-actions';
 import { useAuth } from '@/lib/auth-context';
-import { useCurrentItem, useLiveAuction, useAuction, useCatalog, useViewerCount, useTimer, useBidHistory, useLiveChat } from '@/lib/hooks';
+import { useCurrentItem, useLiveAuction, useAuction, useCatalog, useViewerCount, useTimer, useBidHistory, useLiveChat, useAutoAdvance } from '@/lib/hooks';
 import { formatPrice, formatTimer, getTimerColor } from '@/lib/auction-utils';
 import LiveBadge from '../ui/LiveBadge';
 import LoadingSpinner from '../ui/LoadingSpinner';
@@ -24,6 +24,9 @@ export default function AuctioneerConsole() {
   const [chatMessage, setChatMessage] = useState('');
   const [isAdvancing, setIsAdvancing] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-advance between rounds when timer expires
+  useAutoAdvance(auctionId, true);
 
   const isPaused = secondsLeft < 0;
 

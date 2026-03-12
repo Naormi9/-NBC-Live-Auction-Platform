@@ -224,6 +224,30 @@ export function useAllAuctions() {
   return { auctions, loading };
 }
 
+export function useAutoAdvance(auctionId: string | null, isAdmin: boolean) {
+  const { auction } = useAuction(auctionId);
+  const [processing, setProcessing] = useState(false);
+
+  useEffect(() => {
+    if (!auctionId || !auction || !isAdmin || processing) return;
+    if (auction.status !== 'live') return;
+    if (auction.timerPaused) return;
+    if (!auction.timerEndsAt) return;
+
+    const remaining = (auction.timerEndsAt - Date.now()) / 1000;
+    if (remaining > 0) return;
+
+    // Timer has expired — trigger auto-advance
+    setProcessing(true);
+    import('./auction-actions').then(({ handleTimerExpiry }) => {
+      handleTimerExpiry(auctionId).finally(() => {
+        // Debounce to avoid firing again too quickly
+        setTimeout(() => setProcessing(false), 2000);
+      });
+    });
+  }, [auctionId, auction?.timerEndsAt, auction?.status, auction?.timerPaused, isAdmin, processing]);
+}
+
 export function useRegistration(auctionId: string | null, userId: string | null) {
   const [registered, setRegistered] = useState(false);
   const [loading, setLoading] = useState(true);

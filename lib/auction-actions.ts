@@ -283,6 +283,7 @@ export async function submitBid(
 
   const minBid = item.currentBid + increment;
   if (amount < minBid) throw new Error(`הצעה מינימלית: ₪${minBid.toLocaleString()}`);
+  if ((amount - item.currentBid) % increment !== 0) throw new Error('הסכום לא מיושר למדרגת הקפיצה');
   if (userId === item.currentBidderId) throw new Error('אינך יכול להקפיץ מעל עצמך');
 
   // Update item with new bid
@@ -296,6 +297,7 @@ export async function submitBid(
   updates[`auctions/${auctionId}/timerEndsAt`] = now + timerDuration * 1000;
   updates[`auctions/${auctionId}/timerDuration`] = timerDuration;
   updates[`auctions/${auctionId}/timerPaused`] = false;
+  updates[`auctions/${auctionId}/round1Resets`] = 0;
 
   await update(ref(db), updates);
 
@@ -319,4 +321,52 @@ export async function endAuction(auctionId: string): Promise<string> {
   await update(ref(db, `auctions/${auctionId}`), { status: 'ended', currentItemId: null });
   await chatMsg(auctionId, 'המכרז הסתיים על ידי הכרוז.');
   return 'המכרז הסתיים';
+}
+
+// ─── Auto-Advance Logic (client-side timer expiry handling) ──
+// Called when timer reaches 0. Implements the same logic as
+// Cloud Function timerTick but runs on the client.
+export async function handleTimerExpiry(auctionId: string): Promise<string> {
+  const auctionSnap = await get(ref(db, `auctions/${auctionId}`));
+  const auction = auctionSnap.val();
+  if (!auction || auction.status !== 'live') return '';
+  if (auction.timerPaused) return '';
+
+  const settings = mergeSettings(auction.settings);
+  const currentRound = auction.currentRound || 1;
+  const now = Date.now();
+
+  // Hard close check (30 min default)
+  const hardCloseMs = settings.hardCloseMinutes * 60 * 1000;
+  const itemStartedAt = auction.itemStartedAt || 0;
+  if (itemStartedAt > 0 && (now - itemStartedAt) > hardCloseMs) {
+    return closeItemAndAdvance(auctionId, true);
+  }
+
+  if (currentRound === 1) {
+    const round1Resets = auction.round1Resets || 0;
+    if (round1Resets < 2) {
+      // Auto-reset timer (attempts 1 and 2)
+      await update(ref(db, `auctions/${auctionId}`), {
+        round1Resets: round1Resets + 1,
+        timerEndsAt: now + settings.round1.timerSeconds * 1000,
+      });
+      await chatMsg(auctionId, `סיבוב 1 — ניסיון ${round1Resets + 1}/2, אין הצעות`);
+      return 'טיימר אופס מחדש';
+    } else {
+      // 3rd expiry — advance to round 2
+      return advanceRound(auctionId);
+    }
+  } else if (currentRound === 2) {
+    // Round 2 expired — advance to round 3
+    return advanceRound(auctionId);
+  } else {
+    // Round 3 expired — close item and advance
+    const currentItemId = auction.currentItemId;
+    if (!currentItemId) return '';
+    const itemSnap = await get(ref(db, `auction_items/${currentItemId}`));
+    const item = itemSnap.val();
+    const hasBidder = item && item.currentBidderId;
+    return closeItemAndAdvance(auctionId, hasBidder);
+  }
 }
