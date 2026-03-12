@@ -8,20 +8,33 @@ export async function callFunction(name: string, data: Record<string, any> = {})
 
   const token = await user.getIdToken();
 
-  const response = await fetch(`${FUNCTIONS_BASE}/${name}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(data),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-  const result = await response.json();
+  try {
+    const response = await fetch(`${FUNCTIONS_BASE}/${name}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+      signal: controller.signal,
+    });
 
-  if (!response.ok) {
-    throw new Error(result.error || `Function ${name} failed with status ${response.status}`);
+    let result: any;
+    try {
+      result = await response.json();
+    } catch {
+      throw new Error(`Function ${name} returned invalid response (status ${response.status})`);
+    }
+
+    if (!response.ok) {
+      throw new Error(result.error || `Function ${name} failed with status ${response.status}`);
+    }
+
+    return result;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  return result;
 }

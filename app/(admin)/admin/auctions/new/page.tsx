@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ref, push, set, update, serverTimestamp } from 'firebase/database';
+import { ref, push, set, get, update, serverTimestamp } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
@@ -78,6 +78,25 @@ export default function NewAuctionPage() {
     setLoading(true);
     try {
       const scheduledAt = date && time ? new Date(`${date}T${time}`).getTime() : 0;
+
+      // Check for conflicting auctions on the same date
+      if (status === 'published' && scheduledAt > 0) {
+        const allSnap = await get(ref(db, 'auctions'));
+        if (allSnap.exists()) {
+          const all = allSnap.val();
+          const sameDayConflict = Object.values(all).some((a: any) => {
+            if (a.status === 'ended' || a.status === 'draft') return false;
+            const diff = Math.abs(a.scheduledAt - scheduledAt);
+            return diff < 3 * 60 * 60 * 1000; // within 3 hours
+          });
+          if (sameDayConflict) {
+            toast.error('יש מכרז מתוכנן בזמן קרוב. לא ניתן ליצור שני מכרזים בו-זמנית.');
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
       const auctionRef = push(ref(db, 'auctions'));
       const auctionId = auctionRef.key!;
 

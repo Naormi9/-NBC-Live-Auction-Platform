@@ -238,13 +238,17 @@ export function useAutoAdvance(auctionId: string | null, isAdmin: boolean) {
     if (remaining > 0) return;
 
     // Timer has expired — trigger auto-advance
+    let cancelled = false;
     setProcessing(true);
     import('./auction-actions').then(({ handleTimerExpiry }) => {
       handleTimerExpiry(auctionId).finally(() => {
         // Debounce to avoid firing again too quickly
-        setTimeout(() => setProcessing(false), 2000);
+        setTimeout(() => {
+          if (!cancelled) setProcessing(false);
+        }, 2000);
       });
     });
+    return () => { cancelled = true; };
   }, [auctionId, auction?.timerEndsAt, auction?.status, auction?.timerPaused, isAdmin, processing]);
 }
 

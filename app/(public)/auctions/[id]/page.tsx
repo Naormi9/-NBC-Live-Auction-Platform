@@ -21,6 +21,7 @@ export default function AuctionCatalogPage() {
   const { registered } = useRegistration(auctionId, user?.uid || null);
   const [preBidItem, setPreBidItem] = useState<string | null>(null);
   const [preBidAmount, setPreBidAmount] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
   // Track user's existing pre-bids: { [itemId]: amount }
   const [userPreBids, setUserPreBids] = useState<Record<string, number>>({});
 
@@ -51,10 +52,15 @@ export default function AuctionCatalogPage() {
       toast.error('התחבר קודם כדי להירשם');
       return;
     }
+    if (!termsAccepted) {
+      toast.error('יש לאשר את תנאי ההשתתפות');
+      return;
+    }
     await set(ref(db, `registrations/${auctionId}/${user.uid}`), {
       userId: user.uid,
       registeredAt: serverTimestamp(),
       status: 'approved',
+      termsAcceptedAt: serverTimestamp(),
     });
     toast.success('נרשמת למכרז בהצלחה!');
   };
@@ -132,9 +138,15 @@ export default function AuctionCatalogPage() {
           <p className="text-text-secondary">{auction.houseName}</p>
 
           {!registered && user && (
-            <button onClick={handleRegister} className="btn-accent mt-4 px-6 py-3 rounded-xl">
-              הירשם למכרז זה
-            </button>
+            <div className="mt-4 space-y-2">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} className="accent-accent w-4 h-4" />
+                <span>אני מאשר/ת את תנאי ההשתתפות במכרז ומסכים/ה לתנאי השימוש</span>
+              </label>
+              <button onClick={handleRegister} disabled={!termsAccepted} className="btn-accent px-6 py-3 rounded-xl disabled:opacity-50">
+                הירשם למכרז זה
+              </button>
+            </div>
           )}
           {registered && (
             <div className="mt-4 text-bid-price text-sm font-semibold">

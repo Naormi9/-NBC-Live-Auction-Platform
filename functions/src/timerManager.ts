@@ -33,6 +33,7 @@ export const timerTick = functions.region('europe-west1').pubsub
     const now = Date.now();
 
     for (const [auctionId, auctionData] of Object.entries(auctions)) {
+      try {
       const auction = auctionData as any;
 
       if (!auction.timerEndsAt || auction.timerEndsAt > now) continue;
@@ -88,6 +89,9 @@ export const timerTick = functions.region('europe-west1').pubsub
       } else {
         // Round 3 expired — close item and advance to next
         await closeItemAndAdvance(auctionId, auction, settings, lockRef);
+      }
+      } catch (err) {
+        console.error(`Error processing auction ${auctionId}:`, err);
       }
     }
   });
@@ -195,5 +199,6 @@ async function closeItemAndAdvance(auctionId: string, auction: any, settings: an
       message: `הפריט "${nextItem.title}" עלה לבמה!`,
       timestamp: admin.database.ServerValue.TIMESTAMP,
     });
+    await lockRef.remove();
   }
 }

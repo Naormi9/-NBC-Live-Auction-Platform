@@ -14,12 +14,12 @@ export const onPreBidCreated = functions.region('europe-west1').database
     const allPreBids = allPreBidsSnap.val() || {};
 
     const maxAmount = Object.values(allPreBids).reduce((max: number, bid: any) => {
-      return bid.amount > max ? bid.amount : max;
+      const amount = typeof bid?.amount === 'number' ? bid.amount : 0;
+      return amount > max ? amount : max;
     }, 0);
 
-    if (maxAmount > 0) {
-      await db.ref(`/auction_items/${itemId}`).update({
-        preBidPrice: maxAmount,
-      });
-    }
+    // Update item's preBidPrice (set to null if no valid bids remain)
+    await db.ref(`/auction_items/${itemId}`).update({
+      preBidPrice: maxAmount > 0 ? maxAmount : null,
+    });
   });

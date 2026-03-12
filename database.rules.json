@@ -37,7 +37,7 @@
         ".read": true,
         "$msgId": {
           ".write": "auth != null",
-          ".validate": "newData.hasChildren(['senderId','senderName','message','timestamp']) && newData.child('message').isString() && newData.child('message').val().length <= 300"
+          ".validate": "newData.hasChildren(['senderId','senderName','message','timestamp']) && (newData.child('senderId').val() === auth.uid || (newData.child('senderId').val() === 'system' && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager'))) && newData.child('message').isString() && newData.child('message').val().length > 0 && newData.child('message').val().length <= 300"
         }
       }
     },
@@ -78,7 +78,20 @@
     },
     "bid_history": {
       ".read": true,
-      ".write": false
+      "$auctionId": {
+        "$itemId": {
+          "$bidId": {
+            ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager')",
+            ".validate": "newData.hasChildren(['userId','userDisplayName','amount','round','timestamp'])"
+          }
+        }
+      }
+    },
+    "houses": {
+      ".read": "auth != null",
+      "$houseId": {
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+      }
     },
     "presence": {
       "$auctionId": {
@@ -91,7 +104,7 @@
     "timer_locks": {
       "$auctionId": {
         ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
-        ".write": false
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
       }
     }
   }

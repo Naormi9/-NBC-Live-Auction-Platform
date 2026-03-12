@@ -38,7 +38,7 @@ export default function LiveChat({ auctionId, messages, registered }: LiveChatPr
       <h3 className="text-sm font-semibold text-text-secondary mb-2 px-2">צ&apos;אט חי</h3>
       <div className="flex-1 overflow-y-auto space-y-1 max-h-64 mb-2">
         {messages.map((msg, i) => (
-          <div key={i} className="px-2 py-1">
+          <div key={`${msg.senderId}-${msg.timestamp}-${i}`} className="px-2 py-1">
             {msg.senderRole === 'system' ? (
               <div className="text-xs text-text-secondary italic">{msg.message}</div>
             ) : (

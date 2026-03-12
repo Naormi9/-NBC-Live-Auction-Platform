@@ -34,12 +34,12 @@ export default function Navbar() {
                 <span className="text-live-dot font-semibold">שידור חי</span>
               </Link>
             )}
-            {profile?.role === 'admin' && (
-              <Link href="/admin" className="text-text-secondary hover:text-white transition-smooth text-sm">
-                ניהול
+            {user && (
+              <Link href="/my-bids" className="text-text-secondary hover:text-white transition-smooth text-sm">
+                ההצעות שלי
               </Link>
             )}
-            {profile?.role === 'house_manager' && (
+            {(profile?.role === 'admin' || profile?.role === 'house_manager') && (
               <Link href="/admin" className="text-text-secondary hover:text-white transition-smooth text-sm">
                 ניהול
               </Link>

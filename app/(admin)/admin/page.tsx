@@ -2,11 +2,18 @@
 
 import Link from 'next/link';
 import { useAllAuctions } from '@/lib/hooks';
+import { useAuth } from '@/lib/auth-context';
 import Navbar from '@/components/ui/Navbar';
 import { AuctionStatusBadge } from '@/components/ui/StatusBadge';
 
 export default function AdminDashboard() {
-  const { auctions } = useAllAuctions();
+  const { auctions: allAuctions } = useAllAuctions();
+  const { profile } = useAuth();
+
+  // House managers only see their own auctions
+  const auctions = profile?.role === 'house_manager' && profile.houseId
+    ? allAuctions.filter((a) => a.houseId === profile.houseId)
+    : allAuctions;
 
   const liveCount = auctions.filter((a) => a.status === 'live').length;
   const publishedCount = auctions.filter((a) => a.status === 'published').length;
@@ -39,6 +46,10 @@ export default function AdminDashboard() {
           <Link href="/admin/live" className="glass rounded-xl p-6 hover:border-accent/30 transition-smooth border border-transparent text-center">
             <div className="text-3xl mb-2">🎛️</div>
             <div className="font-bold">פאנל כרוז (לייב)</div>
+          </Link>
+          <Link href="/admin/houses" className="glass rounded-xl p-6 hover:border-accent/30 transition-smooth border border-transparent text-center">
+            <div className="text-3xl mb-2">🏠</div>
+            <div className="font-bold">בתי מכירות ומשתמשים</div>
           </Link>
         </div>
 
