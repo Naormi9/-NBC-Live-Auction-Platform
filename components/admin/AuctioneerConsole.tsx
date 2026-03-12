@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { ref, push, serverTimestamp } from 'firebase/database';
+import { ref, push, update, serverTimestamp } from 'firebase/database';
 import { db } from '@/lib/firebase';
 import * as actions from '@/lib/auction-actions';
+import { updateLiveSettings } from '@/lib/auction-actions';
 import { useAuth } from '@/lib/auth-context';
 import { useCurrentItem, useLiveAuction, useAuction, useCatalog, useViewerCount, useTimer, useBidHistory, useLiveChat, useAutoAdvance } from '@/lib/hooks';
 import { formatPrice, formatTimer, getTimerColor } from '@/lib/auction-utils';
@@ -23,6 +24,10 @@ export default function AuctioneerConsole() {
   const messages = useLiveChat(auctionId);
   const [chatMessage, setChatMessage] = useState('');
   const [isAdvancing, setIsAdvancing] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [editRound, setEditRound] = useState<'round1' | 'round2' | 'round3'>('round1');
+  const [editIncrement, setEditIncrement] = useState('');
+  const [editTimer, setEditTimer] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-advance between rounds when timer expires
@@ -304,6 +309,89 @@ export default function AuctioneerConsole() {
                 {isAdvancing ? 'מעבד...' : '✗ לא נמכר → הבא'}
               </button>
             </div>
+          </div>
+
+          {/* Settings Editor */}
+          <div className="glass rounded-xl p-4 space-y-3">
+            <button
+              onClick={() => {
+                setShowSettings(!showSettings);
+                if (!showSettings && auction?.settings) {
+                  const rk = editRound;
+                  const s = auction.settings as any;
+                  setEditIncrement(String(s?.[rk]?.increment || ''));
+                  setEditTimer(String(s?.[rk]?.timerSeconds || ''));
+                }
+              }}
+              className="w-full flex items-center justify-between text-sm font-semibold text-text-secondary"
+            >
+              <span>הגדרות סיבובים</span>
+              <span>{showSettings ? '▲' : '▼'}</span>
+            </button>
+            {showSettings && (
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  {(['round1', 'round2', 'round3'] as const).map((rk) => (
+                    <button
+                      key={rk}
+                      onClick={() => {
+                        setEditRound(rk);
+                        const s = auction?.settings as any;
+                        setEditIncrement(String(s?.[rk]?.increment || ''));
+                        setEditTimer(String(s?.[rk]?.timerSeconds || ''));
+                      }}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-semibold ${
+                        editRound === rk ? 'bg-accent text-black' : 'btn-dark'
+                      }`}
+                    >
+                      {rk === 'round1' ? 'סיבוב 1' : rk === 'round2' ? 'סיבוב 2' : 'סיבוב 3'}
+                    </button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-text-secondary">מדרגת קפיצה (₪)</label>
+                    <input
+                      type="number"
+                      value={editIncrement}
+                      onChange={(e) => setEditIncrement(e.target.value)}
+                      className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent"
+                      dir="ltr"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-text-secondary">טיימר (שניות)</label>
+                    <input
+                      type="number"
+                      value={editTimer}
+                      onChange={(e) => setEditTimer(e.target.value)}
+                      className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent"
+                      dir="ltr"
+                    />
+                  </div>
+                </div>
+                <button
+                  onClick={async () => {
+                    if (!auctionId) return;
+                    const inc = parseInt(editIncrement);
+                    const timer = parseInt(editTimer);
+                    if (isNaN(inc) || isNaN(timer) || inc <= 0 || timer <= 0) {
+                      toast.error('ערכים לא תקינים');
+                      return;
+                    }
+                    try {
+                      const msg = await updateLiveSettings(auctionId, editRound, inc, timer);
+                      toast.success(msg);
+                    } catch (err: any) {
+                      toast.error(err.message || 'שגיאה');
+                    }
+                  }}
+                  className="w-full btn-accent py-2 rounded-lg text-sm font-bold"
+                >
+                  שמור הגדרות {editRound === 'round1' ? 'סיבוב 1' : editRound === 'round2' ? 'סיבוב 2' : 'סיבוב 3'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

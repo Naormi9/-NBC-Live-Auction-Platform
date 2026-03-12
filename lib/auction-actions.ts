@@ -316,6 +316,20 @@ export async function submitBid(
   return 'ההצעה התקבלה!';
 }
 
+// ─── Update Live Settings ───────────────────────────────────
+export async function updateLiveSettings(
+  auctionId: string,
+  roundKey: 'round1' | 'round2' | 'round3',
+  increment: number,
+  timerSeconds: number
+): Promise<string> {
+  await update(ref(db, `auctions/${auctionId}/settings/${roundKey}`), {
+    increment,
+    timerSeconds,
+  });
+  return `הגדרות ${roundKey === 'round1' ? 'סיבוב 1' : roundKey === 'round2' ? 'סיבוב 2' : 'סיבוב 3'} עודכנו`;
+}
+
 // ─── End Auction ────────────────────────────────────────────
 export async function endAuction(auctionId: string): Promise<string> {
   await update(ref(db, `auctions/${auctionId}`), { status: 'ended', currentItemId: null });

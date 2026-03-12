@@ -3,13 +3,20 @@
 import Link from 'next/link';
 import { startAuctionLive } from '@/lib/auction-actions';
 import { useAllAuctions } from '@/lib/hooks';
+import { useAuth } from '@/lib/auth-context';
 import Navbar from '@/components/ui/Navbar';
 import { AuctionStatusBadge } from '@/components/ui/StatusBadge';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import toast from 'react-hot-toast';
 
 export default function AdminAuctionsPage() {
-  const { auctions, loading } = useAllAuctions();
+  const { auctions: allAuctions, loading } = useAllAuctions();
+  const { profile } = useAuth();
+
+  // House managers only see their own auctions
+  const auctions = profile?.role === 'house_manager' && profile.houseId
+    ? allAuctions.filter((a) => a.houseId === profile.houseId)
+    : allAuctions;
 
   const goLive = async (auctionId: string) => {
     try {

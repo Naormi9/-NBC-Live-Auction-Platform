@@ -21,9 +21,11 @@ export default function RegisterPrompt({ auctionId, isLoggedIn }: RegisterPrompt
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const handleRegisterForAuction = async () => {
     if (!user) return;
+    if (!termsAccepted) { toast.error('יש לאשר את תנאי ההשתתפות'); return; }
     setLoading(true);
     try {
       await set(ref(db, `registrations/${auctionId}/${user.uid}`), {
@@ -103,13 +105,19 @@ export default function RegisterPrompt({ auctionId, isLoggedIn }: RegisterPrompt
             : 'התחבר והירשם למכרז כדי להשתתף'}
         </p>
         {isLoggedIn ? (
-          <button
-            onClick={handleRegisterForAuction}
-            disabled={loading}
-            className="btn-accent px-6 py-2 rounded-lg text-sm disabled:opacity-50"
-          >
-            {loading ? 'נרשם...' : 'הירשם למכרז'}
-          </button>
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 justify-center text-xs cursor-pointer">
+              <input type="checkbox" checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} className="accent-accent" />
+              <span>אני מאשר/ת את תנאי ההשתתפות במכרז</span>
+            </label>
+            <button
+              onClick={handleRegisterForAuction}
+              disabled={loading || !termsAccepted}
+              className="btn-accent px-6 py-2 rounded-lg text-sm disabled:opacity-50"
+            >
+              {loading ? 'נרשם...' : 'הירשם למכרז'}
+            </button>
+          </div>
         ) : (
           <button
             onClick={() => setShowModal(true)}
@@ -190,9 +198,13 @@ export default function RegisterPrompt({ auctionId, isLoggedIn }: RegisterPrompt
                     dir="ltr"
                   />
                 </div>
+                <label className="flex items-center gap-2 text-xs cursor-pointer">
+                  <input type="checkbox" checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} className="accent-accent" />
+                  <span>אני מאשר/ת את תנאי ההשתתפות במכרז ומסכים/ה לתנאי השימוש</span>
+                </label>
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || !termsAccepted}
                   className="w-full btn-accent py-3 rounded-lg font-bold disabled:opacity-50"
                 >
                   {loading ? 'נרשם...' : 'הירשם והצטרף למכרז'}

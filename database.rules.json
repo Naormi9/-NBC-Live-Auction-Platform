@@ -78,7 +78,20 @@
     },
     "bid_history": {
       ".read": true,
-      ".write": false
+      "$auctionId": {
+        "$itemId": {
+          "$bidId": {
+            ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager')",
+            ".validate": "newData.hasChildren(['userId','userDisplayName','amount','round','timestamp'])"
+          }
+        }
+      }
+    },
+    "houses": {
+      ".read": "auth != null",
+      "$houseId": {
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+      }
     },
     "presence": {
       "$auctionId": {
