@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { ref, update } from 'firebase/database';
 import { db } from '@/lib/firebase';
-import { callFunction } from '@/lib/api';
+import * as auctionActions from '@/lib/auction-actions';
 import { useAuction, useCatalog } from '@/lib/hooks';
 import Navbar from '@/components/ui/Navbar';
 import { AuctionStatusBadge, ItemStatusBadge } from '@/components/ui/StatusBadge';
@@ -86,8 +86,8 @@ export default function EditAuctionPage() {
 
   const startLive = async () => {
     try {
-      await callFunction('startAuctionLive', { auctionId });
-      toast.success('המכרז התחיל!');
+      const msg = await auctionActions.startAuctionLive(auctionId);
+      toast.success(msg);
     } catch (err: any) {
       toast.error(err.message || 'שגיאה בהפעלת המכרז');
     }
@@ -95,8 +95,8 @@ export default function EditAuctionPage() {
 
   const handleEndAuction = async () => {
     try {
-      await callFunction('endAuction', { auctionId });
-      toast.success('המכרז הסתיים');
+      const msg = await auctionActions.endAuction(auctionId);
+      toast.success(msg);
     } catch (err: any) {
       toast.error(err.message || 'שגיאה בסיום המכרז');
     }

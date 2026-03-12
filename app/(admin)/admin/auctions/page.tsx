@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { callFunction } from '@/lib/api';
+import { startAuctionLive } from '@/lib/auction-actions';
 import { useAllAuctions } from '@/lib/hooks';
 import Navbar from '@/components/ui/Navbar';
 import { AuctionStatusBadge } from '@/components/ui/StatusBadge';
@@ -13,8 +13,8 @@ export default function AdminAuctionsPage() {
 
   const goLive = async (auctionId: string) => {
     try {
-      await callFunction('startAuctionLive', { auctionId });
-      toast.success('המכרז עלה לאוויר!');
+      const msg = await startAuctionLive(auctionId);
+      toast.success(msg);
     } catch (err: any) {
       toast.error(err.message || 'שגיאה בהפעלת המכרז');
     }
