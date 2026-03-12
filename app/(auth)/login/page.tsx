@@ -22,9 +22,17 @@ export default function LoginPage() {
     try {
       await sendPasswordResetEmail(auth, email);
       setResetSent(true);
-      toast.success('נשלח מייל לאיפוס סיסמה');
-    } catch {
-      toast.error('שגיאה בשליחת מייל איפוס');
+      toast.success('אם האימייל רשום במערכת, נשלח מייל לאיפוס סיסמה');
+    } catch (err: any) {
+      if (err.code === 'auth/user-not-found') {
+        toast.error('האימייל לא רשום במערכת');
+      } else if (err.code === 'auth/invalid-email') {
+        toast.error('כתובת אימייל לא תקינה');
+      } else {
+        // For Firebase with email enumeration protection, show neutral message
+        setResetSent(true);
+        toast.success('אם האימייל רשום במערכת, נשלח מייל לאיפוס סיסמה');
+      }
     }
   };
 

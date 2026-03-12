@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { ref, push, serverTimestamp } from 'firebase/database';
 import { db } from '@/lib/firebase';
 import * as actions from '@/lib/auction-actions';
@@ -23,6 +23,13 @@ export default function AuctioneerConsole() {
   const messages = useLiveChat(auctionId);
   const [chatMessage, setChatMessage] = useState('');
   const [isAdvancing, setIsAdvancing] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const isPaused = secondsLeft < 0;
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages.length]);
 
   if (liveLoading) return <LoadingSpinner size="lg" />;
 
@@ -59,6 +66,16 @@ export default function AuctioneerConsole() {
     if (!auctionId) return;
     try {
       const msg = await actions.pauseTimer(auctionId);
+      toast.success(msg);
+    } catch (err: any) {
+      toast.error(err.message || 'שגיאה');
+    }
+  };
+
+  const handleResumeTimer = async () => {
+    if (!auctionId) return;
+    try {
+      const msg = await actions.resumeTimer(auctionId);
       toast.success(msg);
     } catch (err: any) {
       toast.error(err.message || 'שגיאה');
@@ -116,10 +133,17 @@ export default function AuctioneerConsole() {
     setChatMessage('');
   };
 
-  const timerColor = getTimerColor(secondsLeft);
+  const timerColor = isPaused ? 'orange' : getTimerColor(secondsLeft);
+
+  // Item image
+  const itemImage = item?.images?.length
+    ? item.images[0]
+    : item
+      ? `https://placehold.co/400x250/1E1E1E/6C63FF?text=${encodeURIComponent(item.title)}`
+      : null;
 
   return (
-    <div className="p-4 max-w-6xl mx-auto space-y-4">
+    <div className="p-4 max-w-7xl mx-auto space-y-4">
       {/* Header */}
       <div className="glass rounded-xl p-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -141,13 +165,55 @@ export default function AuctioneerConsole() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Current Item */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Current Item with Image */}
         <div className="glass rounded-xl p-4 space-y-3">
           <h2 className="text-sm font-semibold text-text-secondary">פריט נוכחי</h2>
           {item ? (
             <>
+              {/* Vehicle image */}
+              {itemImage && (
+                <div className="aspect-[16/10] bg-bg-elevated rounded-lg overflow-hidden">
+                  <img src={itemImage} alt={item.title} className="w-full h-full object-cover" />
+                </div>
+              )}
+
               <div className="text-xl font-bold">{item.title}</div>
+
+              {/* Vehicle specs */}
+              <div className="grid grid-cols-3 gap-1 text-xs">
+                {item.year && (
+                  <div className="bg-bg-elevated rounded px-2 py-1">
+                    <span className="text-text-secondary">שנה: </span>{item.year}
+                  </div>
+                )}
+                {item.km && (
+                  <div className="bg-bg-elevated rounded px-2 py-1">
+                    <span className="text-text-secondary">ק&quot;מ: </span>{item.km.toLocaleString()}
+                  </div>
+                )}
+                {item.owners && (
+                  <div className="bg-bg-elevated rounded px-2 py-1">
+                    <span className="text-text-secondary">יד: </span>{item.owners}
+                  </div>
+                )}
+                {item.color && (
+                  <div className="bg-bg-elevated rounded px-2 py-1">
+                    <span className="text-text-secondary">צבע: </span>{item.color}
+                  </div>
+                )}
+                {item.engineCC && (
+                  <div className="bg-bg-elevated rounded px-2 py-1">
+                    <span className="text-text-secondary">נפח: </span>{item.engineCC}
+                  </div>
+                )}
+                {item.make && (
+                  <div className="bg-bg-elevated rounded px-2 py-1">
+                    <span className="text-text-secondary">יצרן: </span>{item.make}
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <div className="text-xs text-text-secondary">הצעה נוכחית</div>
@@ -201,7 +267,11 @@ export default function AuctioneerConsole() {
           <div className="glass rounded-xl p-4 space-y-3">
             <h2 className="text-sm font-semibold text-text-secondary">בקרת טיימר</h2>
             <div className="grid grid-cols-2 gap-2">
-              <button onClick={handlePauseTimer} className="btn-dark py-3 rounded-lg text-sm">⏸ עצור טיימר</button>
+              {isPaused ? (
+                <button onClick={handleResumeTimer} className="btn bg-bid-price hover:bg-bid-price/80 text-black py-3 rounded-lg text-sm font-bold">▶ חדש טיימר</button>
+              ) : (
+                <button onClick={handlePauseTimer} className="btn-dark py-3 rounded-lg text-sm">⏸ עצור טיימר</button>
+              )}
               <button onClick={() => handleAddTime(30)} className="btn-dark py-3 rounded-lg text-sm">+30 שנ&apos;</button>
               <button onClick={() => handleAddTime(60)} className="btn-dark py-3 rounded-lg text-sm">+60 שנ&apos;</button>
               <button onClick={() => handleAddTime(120)} className="btn-dark py-3 rounded-lg text-sm">+120 שנ&apos;</button>
@@ -232,22 +302,39 @@ export default function AuctioneerConsole() {
               </button>
             </div>
           </div>
+        </div>
 
-          {/* Chat broadcast */}
-          <div className="glass rounded-xl p-4 space-y-3">
-            <h2 className="text-sm font-semibold text-text-secondary">שלח הודעה למשתתפים</h2>
-            <div className="flex gap-2">
-              <input
-                value={chatMessage}
-                onChange={(e) => setChatMessage(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && sendChatMsg()}
-                placeholder="כתוב הודעה..."
-                className="flex-1 bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-text-secondary focus:outline-none focus:border-accent"
-              />
-              <button onClick={sendChatMsg} className="btn-accent py-2 px-4 rounded-lg text-sm">
-                שלח
-              </button>
-            </div>
+        {/* Chat panel */}
+        <div className="glass rounded-xl p-4 flex flex-col space-y-3 max-h-[600px]">
+          <h2 className="text-sm font-semibold text-text-secondary">צ&apos;אט חי</h2>
+
+          {/* Chat messages */}
+          <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+            {messages.map((msg, i) => (
+              <div key={i} className={`text-sm rounded px-2 py-1 ${
+                msg.senderRole === 'system' ? 'bg-accent/10 text-accent' :
+                msg.senderRole === 'auctioneer' ? 'bg-bid-price/10 text-bid-price' :
+                'bg-bg-elevated/50'
+              }`}>
+                <span className="font-semibold text-xs">{msg.senderName}: </span>
+                <span>{msg.message}</span>
+              </div>
+            ))}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Chat input */}
+          <div className="flex gap-2">
+            <input
+              value={chatMessage}
+              onChange={(e) => setChatMessage(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && sendChatMsg()}
+              placeholder="כתוב הודעה..."
+              className="flex-1 bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-text-secondary focus:outline-none focus:border-accent"
+            />
+            <button onClick={sendChatMsg} className="btn-accent py-2 px-4 rounded-lg text-sm">
+              שלח
+            </button>
           </div>
         </div>
       </div>
