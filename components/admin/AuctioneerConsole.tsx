@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { ref, push, serverTimestamp } from 'firebase/database';
 import { db } from '@/lib/firebase';
-import { callFunction } from '@/lib/api';
+import * as actions from '@/lib/auction-actions';
 import { useAuth } from '@/lib/auth-context';
 import { useCurrentItem, useLiveAuction, useAuction, useCatalog, useViewerCount, useTimer, useBidHistory, useLiveChat } from '@/lib/hooks';
 import { formatPrice, formatTimer, getTimerColor } from '@/lib/auction-utils';
@@ -38,28 +38,28 @@ export default function AuctioneerConsole() {
   const handleActivateFirstItem = async () => {
     if (!auctionId) return;
     try {
-      await callFunction('activateFirstItem', { auctionId });
-      toast.success('הפריט הראשון הופעל');
+      const msg = await actions.activateNextItem(auctionId);
+      toast.success(msg);
     } catch (err: any) {
       toast.error(err.message || 'שגיאה');
     }
   };
 
-  const addTime = async (seconds: number) => {
+  const handleAddTime = async (seconds: number) => {
     if (!auctionId) return;
     try {
-      await callFunction('adjustAuctionTimer', { auctionId, action: 'add', seconds });
-      toast.success(`נוספו ${seconds} שניות`);
+      const msg = await actions.addTime(auctionId, seconds);
+      toast.success(msg);
     } catch (err: any) {
       toast.error(err.message || 'שגיאה');
     }
   };
 
-  const pauseTimer = async () => {
+  const handlePauseTimer = async () => {
     if (!auctionId) return;
     try {
-      await callFunction('adjustAuctionTimer', { auctionId, action: 'pause' });
-      toast.success('הטיימר הושהה');
+      const msg = await actions.pauseTimer(auctionId);
+      toast.success(msg);
     } catch (err: any) {
       toast.error(err.message || 'שגיאה');
     }
@@ -69,8 +69,8 @@ export default function AuctioneerConsole() {
     if (!auctionId || isAdvancing) return;
     setIsAdvancing(true);
     try {
-      await callFunction('closeItemAndAdvance', { auctionId, markAsSold });
-      toast.success(markAsSold ? 'פריט נמכר — עברנו לבא' : 'פריט לא נמכר — עברנו לבא');
+      const msg = await actions.closeItemAndAdvance(auctionId, markAsSold);
+      toast.success(msg);
     } catch (err: any) {
       toast.error(err.message || 'שגיאה בביצוע הפעולה');
     } finally {
@@ -78,12 +78,12 @@ export default function AuctioneerConsole() {
     }
   };
 
-  const advanceRound = async () => {
+  const handleAdvanceRound = async () => {
     if (!auctionId || isAdvancing) return;
     setIsAdvancing(true);
     try {
-      await callFunction('advanceAuctionRound', { auctionId });
-      toast.success('עברנו לסיבוב הבא');
+      const msg = await actions.advanceRound(auctionId);
+      toast.success(msg);
     } catch (err: any) {
       toast.error(err.message || 'שגיאה');
     } finally {
@@ -95,8 +95,8 @@ export default function AuctioneerConsole() {
     if (!auctionId || isAdvancing) return;
     setIsAdvancing(true);
     try {
-      await callFunction('endAuction', { auctionId });
-      toast.success('המכרז הסתיים');
+      const msg = await actions.endAuction(auctionId);
+      toast.success(msg);
     } catch (err: any) {
       toast.error(err.message || 'שגיאה');
     } finally {
@@ -201,10 +201,10 @@ export default function AuctioneerConsole() {
           <div className="glass rounded-xl p-4 space-y-3">
             <h2 className="text-sm font-semibold text-text-secondary">בקרת טיימר</h2>
             <div className="grid grid-cols-2 gap-2">
-              <button onClick={pauseTimer} className="btn-dark py-3 rounded-lg text-sm">⏸ עצור טיימר</button>
-              <button onClick={() => addTime(30)} className="btn-dark py-3 rounded-lg text-sm">+30 שנ&apos;</button>
-              <button onClick={() => addTime(60)} className="btn-dark py-3 rounded-lg text-sm">+60 שנ&apos;</button>
-              <button onClick={() => addTime(120)} className="btn-dark py-3 rounded-lg text-sm">+120 שנ&apos;</button>
+              <button onClick={handlePauseTimer} className="btn-dark py-3 rounded-lg text-sm">⏸ עצור טיימר</button>
+              <button onClick={() => handleAddTime(30)} className="btn-dark py-3 rounded-lg text-sm">+30 שנ&apos;</button>
+              <button onClick={() => handleAddTime(60)} className="btn-dark py-3 rounded-lg text-sm">+60 שנ&apos;</button>
+              <button onClick={() => handleAddTime(120)} className="btn-dark py-3 rounded-lg text-sm">+120 שנ&apos;</button>
             </div>
           </div>
 
@@ -212,7 +212,7 @@ export default function AuctioneerConsole() {
             <h2 className="text-sm font-semibold text-text-secondary">פעולות</h2>
             <div className="space-y-2">
               {auction.currentRound < 3 && (
-                <button onClick={advanceRound} disabled={isAdvancing} className="w-full btn bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg disabled:opacity-50">
+                <button onClick={handleAdvanceRound} disabled={isAdvancing} className="w-full btn bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg disabled:opacity-50">
                   ⏭ עבור לסיבוב {auction.currentRound + 1}
                 </button>
               )}
