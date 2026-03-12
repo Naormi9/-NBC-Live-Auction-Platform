@@ -28,6 +28,8 @@ export interface Auction {
   currentRound: 1 | 2 | 3;
   timerEndsAt: number;
   timerDuration: number;
+  timerPaused?: boolean;
+  remainingOnPause?: number;
   viewerCount: number;
   settings: AuctionSettings;
 }

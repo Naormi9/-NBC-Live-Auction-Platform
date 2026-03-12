@@ -177,6 +177,12 @@ export function useTimer(auctionId: string | null) {
   const [secondsLeft, setSecondsLeft] = useState(0);
 
   useEffect(() => {
+    // Return -1 to signal "paused" state
+    if (auction?.timerPaused) {
+      setSecondsLeft(-1);
+      return;
+    }
+
     if (!auction?.timerEndsAt) { setSecondsLeft(0); return; }
 
     const tick = () => {
@@ -187,7 +193,7 @@ export function useTimer(auctionId: string | null) {
     tick();
     const interval = setInterval(tick, 100);
     return () => clearInterval(interval);
-  }, [auction?.timerEndsAt]);
+  }, [auction?.timerEndsAt, auction?.timerPaused]);
 
   return secondsLeft;
 }

@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { ref, push, serverTimestamp } from 'firebase/database';
-import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { formatPrice, getMinBid, canPlaceBid } from '@/lib/auction-utils';
+import { submitBid } from '@/lib/auction-actions';
+import { playBidSound } from '@/lib/sounds';
 import { Auction, AuctionItem } from '@/lib/types';
 import toast from 'react-hot-toast';
 
@@ -64,18 +64,18 @@ export default function BidButton({ auction, item, registered }: BidButtonProps)
 
     setSubmitting(true);
     try {
-      await push(ref(db, 'pending_bids'), {
-        auctionId: auction.id,
-        itemId: item.id,
-        userId: user.uid,
-        userDisplayName: user.displayName || 'משתתף',
-        amount: nextBid,
-        round: auction.currentRound,
-        timestamp: serverTimestamp(),
-      });
+      await submitBid(
+        auction.id,
+        item.id,
+        user.uid,
+        user.displayName || 'משתתף',
+        nextBid,
+        auction.currentRound as 1 | 2 | 3
+      );
+      playBidSound();
       toast.success(`הצעה של ${formatPrice(nextBid)} נשלחה!`);
-    } catch (err) {
-      toast.error('שגיאה בשליחת ההצעה');
+    } catch (err: any) {
+      toast.error(err.message || 'שגיאה בשליחת ההצעה');
     } finally {
       setSubmitting(false);
     }

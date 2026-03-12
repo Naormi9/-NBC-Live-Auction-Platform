@@ -8,7 +8,8 @@ interface AuctionTimerProps {
 }
 
 export default function AuctionTimer({ secondsLeft, currentRound }: AuctionTimerProps) {
-  const color = getTimerColor(secondsLeft);
+  const isPaused = secondsLeft < 0;
+  const color = isPaused ? 'orange' : getTimerColor(secondsLeft);
 
   const colorClasses = {
     green: 'bg-timer-green/20 text-timer-green border-timer-green/30',

@@ -39,7 +39,8 @@ export function formatPrice(price: number): string {
 }
 
 export function formatTimer(seconds: number): string {
-  if (seconds <= 0) return '00.00';
+  if (seconds < 0) return 'מושהה';
+  if (seconds === 0) return '00.00';
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   const hundredths = Math.floor((seconds % 1) * 100);

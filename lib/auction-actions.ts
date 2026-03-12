@@ -220,19 +220,98 @@ export async function closeItemAndAdvance(auctionId: string, markAsSold: boolean
 
 // ─── Adjust Timer ───────────────────────────────────────────
 export async function pauseTimer(auctionId: string): Promise<string> {
+  const auctionSnap = await get(ref(db, `auctions/${auctionId}`));
+  const auction = auctionSnap.val();
   const now = Date.now();
-  await update(ref(db, `auctions/${auctionId}`), { timerEndsAt: now + 999999000 });
+  const remaining = Math.max(0, ((auction?.timerEndsAt || now) - now) / 1000);
+  await update(ref(db, `auctions/${auctionId}`), {
+    timerPaused: true,
+    remainingOnPause: remaining,
+  });
   return 'הטיימר הושהה';
+}
+
+export async function resumeTimer(auctionId: string): Promise<string> {
+  const auctionSnap = await get(ref(db, `auctions/${auctionId}`));
+  const auction = auctionSnap.val();
+  const remaining = auction?.remainingOnPause || 30;
+  const now = Date.now();
+  await update(ref(db, `auctions/${auctionId}`), {
+    timerPaused: false,
+    timerEndsAt: now + remaining * 1000,
+  });
+  return 'הטיימר חודש';
 }
 
 export async function addTime(auctionId: string, seconds: number): Promise<string> {
   const auctionSnap = await get(ref(db, `auctions/${auctionId}`));
   const auction = auctionSnap.val();
   const now = Date.now();
-  const currentEnd = auction?.timerEndsAt || now;
-  const newEnd = Math.max(currentEnd, now) + seconds * 1000;
-  await update(ref(db, `auctions/${auctionId}`), { timerEndsAt: newEnd });
+
+  if (auction?.timerPaused) {
+    const remaining = (auction.remainingOnPause || 0) + seconds;
+    await update(ref(db, `auctions/${auctionId}`), { remainingOnPause: remaining });
+  } else {
+    const currentEnd = auction?.timerEndsAt || now;
+    const newEnd = Math.max(currentEnd, now) + seconds * 1000;
+    await update(ref(db, `auctions/${auctionId}`), { timerEndsAt: newEnd });
+  }
   return `נוספו ${seconds} שניות`;
+}
+
+// ─── Submit Bid (client-side processing) ────────────────────
+export async function submitBid(
+  auctionId: string,
+  itemId: string,
+  userId: string,
+  userDisplayName: string,
+  amount: number,
+  round: 1 | 2 | 3
+): Promise<string> {
+  const auctionSnap = await get(ref(db, `auctions/${auctionId}`));
+  const auction = auctionSnap.val();
+  if (!auction || auction.status !== 'live') throw new Error('המכרז לא חי');
+
+  const itemSnap = await get(ref(db, `auction_items/${itemId}`));
+  const item = itemSnap.val();
+  if (!item || item.status !== 'active') throw new Error('הפריט אינו פעיל');
+
+  const settings = mergeSettings(auction.settings);
+  const roundKey = `round${round}` as 'round1' | 'round2' | 'round3';
+  const increment = settings[roundKey].increment;
+  const timerDuration = settings[roundKey].timerSeconds;
+
+  const minBid = item.currentBid + increment;
+  if (amount < minBid) throw new Error(`הצעה מינימלית: ₪${minBid.toLocaleString()}`);
+  if (userId === item.currentBidderId) throw new Error('אינך יכול להקפיץ מעל עצמך');
+
+  // Update item with new bid
+  const updates: Record<string, any> = {};
+  updates[`auction_items/${itemId}/currentBid`] = amount;
+  updates[`auction_items/${itemId}/currentBidderId`] = userId;
+  updates[`auction_items/${itemId}/currentBidderName`] = userDisplayName;
+
+  // Reset timer on successful bid
+  const now = Date.now();
+  updates[`auctions/${auctionId}/timerEndsAt`] = now + timerDuration * 1000;
+  updates[`auctions/${auctionId}/timerDuration`] = timerDuration;
+  updates[`auctions/${auctionId}/timerPaused`] = false;
+
+  await update(ref(db), updates);
+
+  // Write to bid history
+  await push(ref(db, `bid_history/${auctionId}/${itemId}`), {
+    userId,
+    userDisplayName,
+    amount,
+    round,
+    timestamp: serverTimestamp(),
+  });
+
+  // Chat message
+  await chatMsg(auctionId, `הצעה התקבלה: ₪${amount.toLocaleString()} מ-${userDisplayName}`);
+
+  return 'ההצעה התקבלה!';
 }
 
 // ─── End Auction ────────────────────────────────────────────

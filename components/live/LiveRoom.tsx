@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useCurrentItem, useBidHistory, useLiveChat, useCatalog, useViewerCount, useTimer, useRegistration, useLiveAuction, useAuction } from '@/lib/hooks';
 import { trackViewer } from '@/lib/presence';
+import { playOutbidSound, playTimerWarningSound, playItemSoldSound } from '@/lib/sounds';
 import AuctionTimer from './AuctionTimer';
 import BidButton from './BidButton';
 import CurrentItem from './CurrentItem';
@@ -25,12 +26,49 @@ export default function LiveRoom() {
   const secondsLeft = useTimer(auctionId);
   const { registered } = useRegistration(auctionId, user?.uid || null);
 
+  const prevBidderRef = useRef<string | null>(null);
+  const prevItemStatusRef = useRef<string | null>(null);
+  const timerWarningFired = useRef(false);
+
   // Track viewer presence
   useEffect(() => {
     if (!auctionId) return;
     const unsub = trackViewer(auctionId, user?.uid);
     return () => unsub();
   }, [auctionId, user?.uid]);
+
+  // Sound: outbid detection
+  useEffect(() => {
+    if (!item || !user) return;
+    const prev = prevBidderRef.current;
+    prevBidderRef.current = item.currentBidderId;
+    // If I was leading and now someone else is
+    if (prev === user.uid && item.currentBidderId !== user.uid && item.currentBidderId) {
+      playOutbidSound();
+    }
+  }, [item?.currentBidderId, user?.uid]);
+
+  // Sound: item sold
+  useEffect(() => {
+    if (!item) return;
+    const prev = prevItemStatusRef.current;
+    prevItemStatusRef.current = item.status;
+    if (prev === 'active' && item.status === 'sold') {
+      playItemSoldSound();
+    }
+  }, [item?.status]);
+
+  // Sound: timer warning (< 5 seconds)
+  useEffect(() => {
+    if (secondsLeft > 5 || secondsLeft < 0) {
+      timerWarningFired.current = false;
+      return;
+    }
+    if (secondsLeft <= 5 && secondsLeft > 0 && !timerWarningFired.current) {
+      timerWarningFired.current = true;
+      playTimerWarningSound();
+    }
+  }, [secondsLeft]);
 
   if (liveLoading || itemLoading) {
     return (
@@ -113,6 +151,13 @@ export default function LiveRoom() {
           <div className="space-y-3 pb-24">
             {/* Car image */}
             <CurrentItem item={item} totalItems={items.length} currentRound={auction.currentRound} increment={currentIncrement} />
+
+            {/* Registration prompt on mobile */}
+            {!registered && (
+              <div className="px-4">
+                <RegisterPrompt auctionId={auction.id} isLoggedIn={!!user} />
+              </div>
+            )}
 
             {/* Catalog strip - horizontal scroll */}
             <div className="px-4">
