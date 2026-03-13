@@ -6,6 +6,7 @@ import LiveBadge from '@/components/ui/LiveBadge';
 import { useAllAuctions, useLiveAuction } from '@/lib/hooks';
 import { AuctionStatusBadge } from '@/components/ui/StatusBadge';
 import { SkeletonGrid } from '@/components/ui/Skeleton';
+import { LogoFull, LogoIcon } from '@/components/ui/Logo';
 
 export default function HomePage() {
   const { auctions, loading } = useAllAuctions();
@@ -22,6 +23,7 @@ export default function HomePage() {
         <div className="absolute inset-0 bg-gradient-to-br from-[#433BFF]/8 via-transparent to-[#89A6FB]/5" />
         <div className="max-w-5xl mx-auto px-4 py-20 md:py-32 text-center relative">
           <div className="inline-flex items-center gap-2 bg-accent/10 text-accent-light px-4 py-2 rounded-full text-sm font-medium mb-6">
+            <LogoIcon size={18} />
             פלטפורמת מכרזים חיים
           </div>
           <h1 className="text-4xl md:text-6xl font-black leading-tight mb-6">
@@ -132,9 +134,10 @@ export default function HomePage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border py-8">
-        <div className="max-w-5xl mx-auto px-4 text-center text-text-secondary text-sm">
-          <p>© 2026 מרכז המכרזים הארצי. כל הזכויות שמורות.</p>
+      <footer className="border-t border-border py-10">
+        <div className="max-w-5xl mx-auto px-4 flex flex-col items-center gap-4">
+          <LogoFull height={48} tm />
+          <p className="text-text-secondary text-sm">© 2026 מרכז המכרזים הארצי. כל הזכויות שמורות.</p>
         </div>
       </footer>
     </div>

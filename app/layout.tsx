@@ -6,7 +6,14 @@ export const metadata: Metadata = {
   title: 'מרכז המכרזים הארצי',
   description: 'מכירות פומביות מדי שבוע על רכבים מכל הקטגוריות. צפו, הציעו והשתתפו במכרזים חיים',
   manifest: '/manifest.json',
-  icons: { icon: '/favicon.svg' },
+  icons: {
+    icon: '/favicon.svg',
+    apple: '/logo-icon.svg',
+  },
+  other: {
+    'theme-color': '#080F0F',
+    'msapplication-TileColor': '#080F0F',
+  },
 };
 
 export default function RootLayout({

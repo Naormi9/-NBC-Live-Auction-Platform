@@ -11,7 +11,7 @@ export async function seedDatabase() {
     id: auctionId,
     title: 'מכרז רכבים מרץ 2026 — בדיקה',
     houseId: 'house_001',
-    houseName: 'NBC מכרזים',
+    houseName: 'מרכז המכרזים הארצי',
     scheduledAt: Date.now() + 3600000, // 1 hour from now
     status: 'published',
     preBidsEnabled: true,

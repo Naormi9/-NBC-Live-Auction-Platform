@@ -6,6 +6,7 @@ import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
+import { LogoIcon } from '@/components/ui/Logo';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -53,9 +54,12 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="glass rounded-2xl p-8 w-full max-w-md space-y-6">
-        <div className="text-center">
+        <div className="text-center space-y-3">
+          <div className="flex justify-center">
+            <LogoIcon size={48} />
+          </div>
           <h1 className="text-2xl font-bold">התחברות</h1>
-          <p className="text-text-secondary text-sm mt-2">
+          <p className="text-text-secondary text-sm">
             הכנס למרכז המכרזים הארצי
           </p>
         </div>

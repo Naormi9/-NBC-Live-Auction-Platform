@@ -104,7 +104,7 @@ export default function NewAuctionPage() {
         id: auctionId,
         title,
         houseId: 'default',
-        houseName: houseName || 'NBC מכרזים',
+        houseName: houseName || 'מרכז המכרזים הארצי',
         scheduledAt,
         status,
         preBidsEnabled: preBids,
@@ -197,7 +197,7 @@ export default function NewAuctionPage() {
                 value={houseName}
                 onChange={(e) => setHouseName(e.target.value)}
                 className="w-full bg-bg-elevated border border-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-accent"
-                placeholder="NBC מכרזים"
+                placeholder="מרכז המכרזים הארצי"
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
