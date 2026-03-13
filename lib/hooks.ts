@@ -234,21 +234,29 @@ export function useAutoAdvance(auctionId: string | null, isAdmin: boolean) {
     if (auction.timerPaused) return;
     if (!auction.timerEndsAt) return;
 
-    const remaining = (auction.timerEndsAt - Date.now()) / 1000;
-    if (remaining > 0) return;
+    const remaining = auction.timerEndsAt - Date.now();
 
-    // Timer has expired — trigger auto-advance
-    let cancelled = false;
-    setProcessing(true);
-    import('./auction-actions').then(({ handleTimerExpiry }) => {
-      handleTimerExpiry(auctionId).finally(() => {
-        // Debounce to avoid firing again too quickly
-        setTimeout(() => {
-          if (!cancelled) setProcessing(false);
-        }, 2000);
+    const fireExpiry = () => {
+      setProcessing(true);
+      import('./auction-actions').then(({ handleTimerExpiry }) => {
+        handleTimerExpiry(auctionId).finally(() => {
+          // Debounce to avoid firing again too quickly
+          setTimeout(() => {
+            setProcessing(false);
+          }, 2000);
+        });
       });
-    });
-    return () => { cancelled = true; };
+    };
+
+    if (remaining <= 0) {
+      // Already expired — fire immediately
+      fireExpiry();
+      return;
+    }
+
+    // Schedule auto-advance for when timer expires
+    const timeout = setTimeout(fireExpiry, remaining + 300); // +300ms buffer
+    return () => clearTimeout(timeout);
   }, [auctionId, auction?.timerEndsAt, auction?.status, auction?.timerPaused, isAdmin, processing]);
 }
 

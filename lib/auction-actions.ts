@@ -20,7 +20,16 @@ function mergeSettings(settings: any) {
     round2: { ...DEFAULT_SETTINGS.round2, ...(settings?.round2 || {}) },
     round3: { ...DEFAULT_SETTINGS.round3, ...(settings?.round3 || {}) },
     hardCloseMinutes: settings?.hardCloseMinutes ?? DEFAULT_SETTINGS.hardCloseMinutes,
+    timerOverrideSeconds: settings?.timerOverrideSeconds ?? null,
   };
+}
+
+/** Get effective timer seconds — override takes precedence over per-round setting */
+function getTimerSeconds(settings: ReturnType<typeof mergeSettings>, roundKey: 'round1' | 'round2' | 'round3'): number {
+  if (settings.timerOverrideSeconds && settings.timerOverrideSeconds > 0) {
+    return settings.timerOverrideSeconds;
+  }
+  return settings[roundKey].timerSeconds;
 }
 
 function chatMsg(auctionId: string, message: string) {
@@ -91,8 +100,8 @@ export async function startAuctionLive(auctionId: string): Promise<string> {
     currentRound: 1,
     round1Resets: 0,
     itemStartedAt: now,
-    timerEndsAt: now + settings.round1.timerSeconds * 1000,
-    timerDuration: settings.round1.timerSeconds,
+    timerEndsAt: now + getTimerSeconds(settings, 'round1') * 1000,
+    timerDuration: getTimerSeconds(settings, 'round1'),
     settings,
   });
 
@@ -125,8 +134,8 @@ export async function activateNextItem(auctionId: string): Promise<string> {
     currentRound: 1,
     round1Resets: 0,
     itemStartedAt: now,
-    timerEndsAt: now + settings.round1.timerSeconds * 1000,
-    timerDuration: settings.round1.timerSeconds,
+    timerEndsAt: now + getTimerSeconds(settings, 'round1') * 1000,
+    timerDuration: getTimerSeconds(settings, 'round1'),
   });
 
   await chatMsg(auctionId, `הפריט "${nextItem.title}" עלה לבמה!`);
@@ -147,10 +156,11 @@ export async function advanceRound(auctionId: string): Promise<string> {
   const roundKey = `round${nextRound}` as 'round2' | 'round3';
   const now = Date.now();
 
+  const timerSec = getTimerSeconds(settings, roundKey);
   await update(ref(db, `auctions/${auctionId}`), {
     currentRound: nextRound,
-    timerEndsAt: now + settings[roundKey].timerSeconds * 1000,
-    timerDuration: settings[roundKey].timerSeconds,
+    timerEndsAt: now + timerSec * 1000,
+    timerDuration: timerSec,
   });
 
   await chatMsg(auctionId, `עוברים לסיבוב ${nextRound} — מדרגת קפיצה: ₪${settings[roundKey].increment.toLocaleString()}`);
@@ -206,13 +216,14 @@ export async function closeItemAndAdvance(auctionId: string, markAsSold: boolean
     currentBidderName: null,
   });
 
+  const timerSec = getTimerSeconds(settings, 'round1');
   await update(ref(db, `auctions/${auctionId}`), {
     currentItemId: nextItem.id,
     currentRound: 1,
     round1Resets: 0,
     itemStartedAt: now,
-    timerEndsAt: now + settings.round1.timerSeconds * 1000,
-    timerDuration: settings.round1.timerSeconds,
+    timerEndsAt: now + timerSec * 1000,
+    timerDuration: timerSec,
   });
 
   await chatMsg(auctionId, `הפריט "${nextItem.title}" עלה לבמה!`);
@@ -283,7 +294,7 @@ export async function submitBid(
   const settings = mergeSettings(auction.settings);
   const roundKey = `round${round}` as 'round1' | 'round2' | 'round3';
   const increment = settings[roundKey].increment;
-  const timerDuration = settings[roundKey].timerSeconds;
+  const timerDuration = getTimerSeconds(settings, roundKey);
 
   const minBid = item.currentBid + increment;
   if (amount < minBid) throw new Error(`הצעה מינימלית: ₪${minBid.toLocaleString()}`);
@@ -334,6 +345,20 @@ export async function updateLiveSettings(
   return `הגדרות ${roundKey === 'round1' ? 'סיבוב 1' : roundKey === 'round2' ? 'סיבוב 2' : 'סיבוב 3'} עודכנו`;
 }
 
+// ─── Set Fixed Timer Override ───────────────────────────────
+export async function setTimerOverride(
+  auctionId: string,
+  seconds: number | null
+): Promise<string> {
+  await update(ref(db, `auctions/${auctionId}/settings`), {
+    timerOverrideSeconds: seconds,
+  });
+  if (seconds) {
+    return `טיימר קבוע הוגדר: ${seconds} שניות`;
+  }
+  return 'טיימר קבוע בוטל — חזרה להגדרות סיבובים';
+}
+
 // ─── End Auction ────────────────────────────────────────────
 export async function endAuction(auctionId: string): Promise<string> {
   await update(ref(db, `auctions/${auctionId}`), { status: 'ended', currentItemId: null });
@@ -365,9 +390,10 @@ export async function handleTimerExpiry(auctionId: string): Promise<string> {
     const round1Resets = auction.round1Resets || 0;
     if (round1Resets < 2) {
       // Auto-reset timer (attempts 1 and 2)
+      const timerSec = getTimerSeconds(settings, 'round1');
       await update(ref(db, `auctions/${auctionId}`), {
         round1Resets: round1Resets + 1,
-        timerEndsAt: now + settings.round1.timerSeconds * 1000,
+        timerEndsAt: now + timerSec * 1000,
       });
       await chatMsg(auctionId, `סיבוב 1 — ניסיון ${round1Resets + 1}/2, אין הצעות`);
       return 'טיימר אופס מחדש';

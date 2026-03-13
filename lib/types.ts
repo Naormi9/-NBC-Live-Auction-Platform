@@ -14,6 +14,7 @@ export interface AuctionSettings {
   round2: RoundSettings;
   round3: RoundSettings;
   hardCloseMinutes: number;
+  timerOverrideSeconds?: number | null;
 }
 
 export interface Auction {

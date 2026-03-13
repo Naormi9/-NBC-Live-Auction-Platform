@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { ref, push, update, serverTimestamp } from 'firebase/database';
 import { db } from '@/lib/firebase';
 import * as actions from '@/lib/auction-actions';
-import { updateLiveSettings } from '@/lib/auction-actions';
+import { updateLiveSettings, setTimerOverride } from '@/lib/auction-actions';
 import { useAuth } from '@/lib/auth-context';
 import { useCurrentItem, useLiveAuction, useAuction, useCatalog, useViewerCount, useTimer, useBidHistory, useLiveChat, useAutoAdvance } from '@/lib/hooks';
 import { formatPrice, formatTimer, getTimerColor } from '@/lib/auction-utils';
@@ -28,6 +28,7 @@ export default function AuctioneerConsole() {
   const [editRound, setEditRound] = useState<'round1' | 'round2' | 'round3'>('round1');
   const [editIncrement, setEditIncrement] = useState('');
   const [editTimer, setEditTimer] = useState('');
+  const [overrideSeconds, setOverrideSeconds] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-advance between rounds when timer expires
@@ -330,6 +331,60 @@ export default function AuctioneerConsole() {
             </button>
             {showSettings && (
               <div className="space-y-3">
+                {/* Fixed timer override */}
+                <div className="bg-bg-elevated/50 rounded-lg p-3 space-y-2">
+                  <label className="text-xs text-text-secondary">טיימר קבוע למכרז (שניות) — דורס הגדרות סיבובים</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      value={overrideSeconds}
+                      onChange={(e) => setOverrideSeconds(e.target.value)}
+                      placeholder={auction?.settings?.timerOverrideSeconds ? String(auction.settings.timerOverrideSeconds) : 'לא הוגדר'}
+                      className="flex-1 bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent"
+                      dir="ltr"
+                    />
+                    <button
+                      onClick={async () => {
+                        if (!auctionId) return;
+                        const sec = parseInt(overrideSeconds);
+                        if (isNaN(sec) || sec <= 0) {
+                          toast.error('הזן מספר שניות תקין');
+                          return;
+                        }
+                        try {
+                          const msg = await setTimerOverride(auctionId, sec);
+                          toast.success(msg);
+                          setOverrideSeconds('');
+                        } catch (err: any) {
+                          toast.error(err.message || 'שגיאה');
+                        }
+                      }}
+                      className="btn-accent py-2 px-4 rounded-lg text-xs font-bold"
+                    >
+                      קבע
+                    </button>
+                    {auction?.settings?.timerOverrideSeconds && (
+                      <button
+                        onClick={async () => {
+                          if (!auctionId) return;
+                          try {
+                            const msg = await setTimerOverride(auctionId, null);
+                            toast.success(msg);
+                          } catch (err: any) {
+                            toast.error(err.message || 'שגיאה');
+                          }
+                        }}
+                        className="btn-dark py-2 px-3 rounded-lg text-xs"
+                      >
+                        בטל
+                      </button>
+                    )}
+                  </div>
+                  {auction?.settings?.timerOverrideSeconds && (
+                    <div className="text-xs text-accent">פעיל: {auction.settings.timerOverrideSeconds} שניות קבוע</div>
+                  )}
+                </div>
+
                 <div className="flex gap-2">
                   {(['round1', 'round2', 'round3'] as const).map((rk) => (
                     <button
