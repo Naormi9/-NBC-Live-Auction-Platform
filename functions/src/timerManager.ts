@@ -16,7 +16,15 @@ function mergeSettings(settings: any) {
     round2: { ...DEFAULT_SETTINGS.round2, ...(settings?.round2 || {}) },
     round3: { ...DEFAULT_SETTINGS.round3, ...(settings?.round3 || {}) },
     hardCloseMinutes: settings?.hardCloseMinutes ?? DEFAULT_SETTINGS.hardCloseMinutes,
+    timerOverrideSeconds: settings?.timerOverrideSeconds ?? null,
   };
+}
+
+function getTimerSeconds(settings: ReturnType<typeof mergeSettings>, roundKey: 'round1' | 'round2' | 'round3'): number {
+  if (settings.timerOverrideSeconds && settings.timerOverrideSeconds > 0) {
+    return settings.timerOverrideSeconds;
+  }
+  return settings[roundKey].timerSeconds;
 }
 
 export const timerTick = functions.region('europe-west1').pubsub
@@ -70,7 +78,7 @@ export const timerTick = functions.region('europe-west1').pubsub
           // Auto-reset timer (attempt 1 or 2)
           await db.ref(`/auctions/${auctionId}`).update({
             round1Resets: round1Resets + 1,
-            timerEndsAt: now + settings.round1.timerSeconds * 1000,
+            timerEndsAt: now + getTimerSeconds(settings, 'round1') * 1000,
           });
           await db.ref(`/live_chat/${auctionId}`).push({
             senderId: 'system',
@@ -98,7 +106,7 @@ export const timerTick = functions.region('europe-west1').pubsub
 
 async function advanceRound(auctionId: string, nextRound: 2 | 3, settings: any) {
   const roundKey = `round${nextRound}` as 'round2' | 'round3';
-  const timerSeconds = settings[roundKey].timerSeconds;
+  const timerSeconds = getTimerSeconds(settings, roundKey);
   const now = Date.now();
 
   await db.ref(`/auctions/${auctionId}`).update({
@@ -184,13 +192,14 @@ async function closeItemAndAdvance(auctionId: string, auction: any, settings: an
       currentBidderId: null,
       currentBidderName: null,
     });
+    const timerSec = getTimerSeconds(settings, 'round1');
     await db.ref(`/auctions/${auctionId}`).update({
       currentItemId: nextItem.id,
       currentRound: 1,
       round1Resets: 0,
       itemStartedAt: now,
-      timerEndsAt: now + settings.round1.timerSeconds * 1000,
-      timerDuration: settings.round1.timerSeconds,
+      timerEndsAt: now + timerSec * 1000,
+      timerDuration: timerSec,
     });
     await db.ref(`/live_chat/${auctionId}`).push({
       senderId: 'system',
