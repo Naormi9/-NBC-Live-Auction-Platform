@@ -108,7 +108,7 @@ export default function EditAuctionPage() {
       const scheduledAt = new Date(`${date}T${time}`).getTime();
       await update(ref(db, `auctions/${auctionId}`), {
         title,
-        houseName: houseName || 'NBC מכרזים',
+        houseName: houseName || 'מרכז המכרזים הארצי',
         scheduledAt,
         preBidsEnabled: preBids,
         timerDuration: r1Timer,

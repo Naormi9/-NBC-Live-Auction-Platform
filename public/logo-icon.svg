@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- Blue accent rect (offset bottom-right) -->
+  <rect x="82" y="42" width="108" height="138" rx="4" fill="url(#iconGrad)"/>
+  <!-- Black main rect -->
+  <rect x="18" y="14" width="124" height="124" rx="4" fill="#111111"/>
+  <!-- Gavel silhouette -->
+  <g transform="translate(96 82) rotate(-45)">
+    <!-- Head -->
+    <rect x="-34" y="-15" width="68" height="30" rx="3" fill="white"/>
+    <!-- Handle -->
+    <rect x="8" y="15" width="13" height="76" rx="3" fill="white"/>
+  </g>
+  <defs>
+    <linearGradient id="iconGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6B6EFF"/>
+      <stop offset="100%" stop-color="#89A6FB"/>
+    </linearGradient>
+  </defs>
+</svg>

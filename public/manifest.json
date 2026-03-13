@@ -5,8 +5,20 @@
   "start_url": "/",
   "display": "standalone",
   "background_color": "#080F0F",
-  "theme_color": "#433BFF",
+  "theme_color": "#080F0F",
   "dir": "rtl",
   "lang": "he",
-  "icons": []
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/logo-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
 }
