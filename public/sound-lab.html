@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NBC Auction Sound Lab</title>
+  <style>
+    :root{
+      --bg:#080F0F;
+      --panel:#10181a;
+      --panel-2:#131d20;
+      --stroke:#223236;
+      --text:#f5f7fb;
+      --muted:#a7b0c2;
+      --blue:#433BFF;
+      --blue2:#89A6FB;
+      --ok:#67e8a8;
+      --warn:#fbbf24;
+      --danger:#fb7185;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:Heebo,system-ui,-apple-system,Segoe UI,Arial,sans-serif;
+      background:
+        radial-gradient(1200px 600px at 20% -10%, rgba(67,59,255,.28), transparent 60%),
+        radial-gradient(1000px 500px at 100% 0%, rgba(137,166,251,.18), transparent 50%),
+        var(--bg);
+      color:var(--text);
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+    }
+    .wrap{
+      width:min(920px,100%);
+      display:grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap:20px;
+    }
+    .card{
+      background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      border:1px solid rgba(255,255,255,.08);
+      box-shadow: 0 20px 50px rgba(0,0,0,.35);
+      border-radius:22px;
+      backdrop-filter: blur(10px);
+    }
+    .main{padding:24px}
+    .side{padding:20px}
+    h1{
+      margin:0 0 8px 0;
+      font-size:clamp(26px, 3vw, 38px);
+      line-height:1.05;
+      letter-spacing:-0.02em;
+    }
+    .sub{
+      margin:0 0 20px 0;
+      color:var(--muted);
+      font-size:15px;
+    }
+    .brand{
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      font-size:13px;
+      color:#d9e2ff;
+      background:linear-gradient(90deg, rgba(67,59,255,.18), rgba(137,166,251,.14));
+      border:1px solid rgba(137,166,251,.22);
+      padding:8px 12px;
+      border-radius:999px;
+      margin-bottom:16px;
+    }
+    .dot{
+      width:10px;height:10px;border-radius:50%;
+      background:linear-gradient(135deg,var(--blue),var(--blue2));
+      box-shadow:0 0 18px rgba(137,166,251,.65);
+    }
+    .grid{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:12px;
+    }
+    button.sound{
+      position:relative;
+      text-align:right;
+      border:1px solid rgba(255,255,255,.1);
+      color:var(--text);
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      padding:16px 16px 14px;
+      border-radius:16px;
+      cursor:pointer;
+      transition:.18s ease;
+      min-height:88px;
+      overflow:hidden;
+    }
+    button.sound:hover{
+      transform:translateY(-2px);
+      border-color:rgba(137,166,251,.35);
+      box-shadow:0 10px 26px rgba(67,59,255,.18);
+    }
+    button.sound:active{transform:translateY(0)}
+    .title{
+      display:block;
+      font-size:16px;
+      font-weight:800;
+      margin-bottom:6px;
+    }
+    .desc{
+      display:block;
+      font-size:13px;
+      color:var(--muted);
+      line-height:1.35;
+      max-width:95%;
+    }
+    .tag{
+      position:absolute;
+      top:12px; left:12px;
+      font-size:11px;
+      padding:5px 8px;
+      border-radius:999px;
+      background:rgba(255,255,255,.06);
+      color:#dbe4f5;
+      border:1px solid rgba(255,255,255,.07);
+    }
+    .controls{
+      display:grid;
+      gap:16px;
+    }
+    .control{
+      background:rgba(255,255,255,.03);
+      border:1px solid rgba(255,255,255,.06);
+      border-radius:16px;
+      padding:14px;
+    }
+    .control h3{
+      margin:0 0 10px 0;
+      font-size:14px;
+    }
+    .row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin:8px 0;
+    }
+    .value{
+      color:#dbe4ff;
+      font-weight:700;
+      min-width:44px;
+      text-align:left;
+    }
+    input[type="range"]{
+      width:100%;
+      accent-color: var(--blue2);
+    }
+    .pill{
+      border:none;
+      background:linear-gradient(135deg, var(--blue), var(--blue2));
+      color:white;
+      padding:10px 14px;
+      border-radius:12px;
+      font-weight:800;
+      cursor:pointer;
+      box-shadow:0 10px 24px rgba(67,59,255,.28);
+    }
+    .ghost{
+      border:1px solid rgba(255,255,255,.1);
+      background:rgba(255,255,255,.04);
+      color:var(--text);
+      padding:10px 14px;
+      border-radius:12px;
+      font-weight:700;
+      cursor:pointer;
+    }
+    .small{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.45;
+      margin-top:6px;
+    }
+    .status{
+      font-size:13px;
+      color:#d9e6ff;
+      background:rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.06);
+      padding:10px 12px;
+      border-radius:12px;
+    }
+    @media (max-width: 860px){
+      .wrap{grid-template-columns:1fr}
+      .grid{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="card main">
+      <div class="brand"><span class="dot"></span> NBC Auction Sound Lab</div>
+      <h1>סאונדים מקצועיים לפלטפורמת מכרזים</h1>
+      <p class="sub">גרסה משודרגת עם אופי יותר פרימיום, טכנולוגי ותחרותי. לחץ על כל אירוע כדי לשמוע.</p>
+      <div class="grid">
+        <button class="sound" onclick="playNewBid()">
+          <span class="tag">LIVE</span>
+          <span class="title">הצעה חדשה</span>
+          <span class="desc">קליק דיגיטלי קצר שמעביר תחושת פעילות חיה במכרז.</span>
+        </button>
+        <button class="sound" onclick="playBidAccepted()">
+          <span class="tag">SUCCESS</span>
+          <span class="title">ההצעה שלך התקבלה</span>
+          <span class="desc">אישור עדין וחיובי, בלי להרגיש משחקי מדי.</span>
+        </button>
+        <button class="sound" onclick="playOutbid()">
+          <span class="tag">ALERT</span>
+          <span class="title">עקפו אותך</span>
+          <span class="desc">התראה קצרה שמחזירה את המשתמש מיד למסך הלייב.</span>
+        </button>
+        <button class="sound" onclick="playCountdownTick()">
+          <span class="tag">FINAL 10s</span>
+          <span class="title">טיקטוק ל־10 שניות אחרונות</span>
+          <span class="desc">פינג מהיר ודחוף, מתאים לשניות האחרונות לפני סגירה.</span>
+        </button>
+        <button class="sound" onclick="playAuctionOpen()">
+          <span class="tag">OPEN</span>
+          <span class="title">מכרז נפתח</span>
+          <span class="desc">צליל פתיחה עולה שמרגיש יוקרתי ונקי.</span>
+        </button>
+        <button class="sound" onclick="playAuctionClosed()">
+          <span class="tag">CLOSE</span>
+          <span class="title">מכרז נסגר</span>
+          <span class="desc">סגירה עם נוכחות, השראה קלה של פטיש מכרז אבל מודרני.</span>
+        </button>
+        <button class="sound" onclick="playYouAreLeading()">
+          <span class="tag">WINNING</span>
+          <span class="title">אתה מוביל</span>
+          <span class="desc">פידבק מהיר ונעים כשאתה כרגע ההצעה הגבוהה ביותר.</span>
+        </button>
+        <button class="sound" onclick="demoSequence()">
+          <span class="tag">DEMO</span>
+          <span class="title">דמו רצף אירועים</span>
+          <span class="desc">פתיחה → הצעה חדשה → התקבלה → עקפו אותך → ספירה לאחור → סגירה.</span>
+        </button>
+      </div>
+    </section>
+    <aside class="card side">
+      <div class="controls">
+        <div class="control">
+          <h3>שליטה</h3>
+          <div class="row">
+            <button class="pill" id="toggleBtn" onclick="toggleEnabled()">🔊 סאונד פעיל</button>
+            <button class="ghost" onclick="stopAll()">עצור הכל</button>
+          </div>
+          <div class="small">בדפדפן צריך קודם אינטראקציה של לחיצה. אחרי זה כל הכפתורים יעבדו רגיל.</div>
+        </div>
+        <div class="control">
+          <h3>ווליום</h3>
+          <div class="row">
+            <input type="range" id="volume" min="0" max="100" value="72" oninput="updateVolume()" />
+            <div class="value" id="volumeValue">72%</div>
+          </div>
+        </div>
+        <div class="control">
+          <h3>קצב טיקטוק</h3>
+          <div class="row">
+            <input type="range" id="tickRate" min="80" max="300" value="165" oninput="updateTickRate()" />
+            <div class="value" id="tickValue">165ms</div>
+          </div>
+          <div class="small">לבדיקה של סוף מכרז. באתר עצמו אפשר להפעיל אותו רק ב־10 השניות האחרונות.</div>
+        </div>
+        <div class="control">
+          <h3>סטטוס</h3>
+          <div class="status" id="statusBox">מוכן לבדיקה. מומלץ לשמוע עם רמקולים או אוזניות.</div>
+        </div>
+        <div class="control">
+          <h3>המלצה מקצועית</h3>
+          <div class="small">
+            באתר האמיתי תפעיל רק:
+            הצעה חדשה, עקפו אותך, 10 שניות אחרונות, פתיחה, סגירה.
+            את "הצעה שלך התקבלה" ו"אתה מוביל" עדיף להשאיר עדינים מאוד.
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+<script>
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  let ctx;
+  let masterGain;
+  let enabled = true;
+  let volume = 0.72;
+  let tickRate = 165;
+  let activeNodes = [];
+  let activeIntervals = [];
+  function setStatus(text){
+    document.getElementById('statusBox').textContent = text;
+  }
+  function initAudio(){
+    if(!ctx){
+      ctx = new AudioContextClass();
+      masterGain = ctx.createGain();
+      masterGain.gain.value = volume;
+      masterGain.connect(ctx.destination);
+    }
+    if(ctx.state === 'suspended'){ ctx.resume(); }
+  }
+  function updateVolume(){
+    volume = Number(document.getElementById('volume').value) / 100;
+    document.getElementById('volumeValue').textContent = Math.round(volume * 100) + '%';
+    if(masterGain) masterGain.gain.setTargetAtTime(volume, ctx.currentTime, 0.01);
+  }
+  function updateTickRate(){
+    tickRate = Number(document.getElementById('tickRate').value);
+    document.getElementById('tickValue').textContent = tickRate + 'ms';
+  }
+  function toggleEnabled(){
+    enabled = !enabled;
+    const btn = document.getElementById('toggleBtn');
+    btn.textContent = enabled ? '🔊 סאונד פעיל' : '🔇 סאונד כבוי';
+    btn.style.opacity = enabled ? '1' : '.7';
+    setStatus(enabled ? 'הסאונדים פעילים.' : 'הסאונדים כבויים.');
+  }
+  function remember(node){
+    activeNodes.push(node);
+    return node;
+  }
+  function cleanupNode(node){
+    try{ node.disconnect(); }catch(e){}
+    activeNodes = activeNodes.filter(n => n !== node);
+  }
+  function stopAll(){
+    activeIntervals.forEach(id => clearInterval(id));
+    activeIntervals = [];
+    activeNodes.forEach(node => {
+      try{
+        if(node.stop) node.stop();
+      }catch(e){}
+      try{ node.disconnect(); }catch(e){}
+    });
+    activeNodes = [];
+    setStatus('כל הצלילים הופסקו.');
+  }
+  function makeEnv(gainNode, start, attack, decay, sustain, release, peak=1){
+    gainNode.gain.setValueAtTime(0.0001, start);
+    gainNode.gain.linearRampToValueAtTime(peak, start + attack);
+    gainNode.gain.linearRampToValueAtTime(sustain * peak, start + attack + decay);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, start + attack + decay + release);
+  }
+  function playOsc(freq, type, start, duration, gain=0.2, rampTo=null){
+    const osc = remember(ctx.createOscillator());
+    const g = remember(ctx.createGain());
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, start);
+    if(rampTo) osc.frequency.exponentialRampToValueAtTime(rampTo, start + duration);
+    g.gain.setValueAtTime(0.0001, start);
+    g.gain.linearRampToValueAtTime(gain, start + Math.min(0.01, duration / 4));
+    g.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+    osc.connect(g);
+    g.connect(masterGain);
+    osc.onended = () => { cleanupNode(osc); cleanupNode(g); };
+    osc.start(start);
+    osc.stop(start + duration);
+  }
+  function playNoise(start, duration, gain=0.05, filterFreq=1800){
+    const bufferSize = Math.max(1, Math.floor(ctx.sampleRate * duration));
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for(let i=0;i<bufferSize;i++) data[i] = (Math.random()*2-1) * (1 - i/bufferSize);
+    const src = remember(ctx.createBufferSource());
+    src.buffer = buffer;
+    const filter = remember(ctx.createBiquadFilter());
+    filter.type = 'highpass';
+    filter.frequency.value = filterFreq;
+    const g = remember(ctx.createGain());
+    g.gain.setValueAtTime(gain, start);
+    g.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+    src.connect(filter);
+    filter.connect(g);
+    g.connect(masterGain);
+    src.onended = () => { cleanupNode(src); cleanupNode(filter); cleanupNode(g); };
+    src.start(start);
+    src.stop(start + duration);
+  }
+  function playNewBid(){
+    if(!enabled) return;
+    initAudio();
+    stopAll();
+    const t = ctx.currentTime + 0.01;
+    playOsc(1280, 'triangle', t, 0.035, 0.14, 520);
+    playOsc(2200, 'sine', t, 0.012, 0.05, 1400);
+    playNoise(t, 0.018, 0.015, 2200);
+    setStatus('נוגן: הצעה חדשה');
+  }
+  function playBidAccepted(){
+    if(!enabled) return;
+    initAudio();
+    stopAll();
+    const t = ctx.currentTime + 0.01;
+    playOsc(740, 'sine', t, 0.11, 0.12);
+    playOsc(988, 'sine', t + 0.10, 0.18, 0.13);
+    playOsc(1480, 'triangle', t + 0.10, 0.12, 0.05);
+    setStatus('נוגן: ההצעה שלך התקבלה');
+  }
+  function playOutbid(){
+    if(!enabled) return;
+    initAudio();
+    stopAll();
+    const t = ctx.currentTime + 0.01;
+    playOsc(1046, 'triangle', t, 0.09, 0.10);
+    playOsc(740, 'sine', t + 0.09, 0.15, 0.12);
+    playNoise(t, 0.03, 0.012, 1800);
+    setStatus('נוגן: עקפו אותך');
+  }
+  function singleTick(time){
+    playOsc(1620, 'triangle', time, 0.03, 0.08);
+    playNoise(time, 0.018, 0.008, 2600);
+  }
+  function playCountdownTick(){
+    if(!enabled) return;
+    initAudio();
+    stopAll();
+    const start = ctx.currentTime + 0.03;
+    let count = 10;
+    setStatus('נוגן: טיקטוק 10 שניות אחרונות');
+    singleTick(start);
+    const id = setInterval(() => {
+      if(!enabled || count <= 1){
+        clearInterval(id);
+        activeIntervals = activeIntervals.filter(x => x !== id);
+        return;
+      }
+      const when = ctx.currentTime + 0.005;
+      singleTick(when);
+      count--;
+    }, tickRate);
+    activeIntervals.push(id);
+  }
+  function playAuctionOpen(){
+    if(!enabled) return;
+    initAudio();
+    stopAll();
+    const t = ctx.currentTime + 0.01;
+    playOsc(260, 'sine', t, 0.40, 0.08, 520);
+    playOsc(390, 'sine', t + 0.16, 0.42, 0.10, 780);
+    playOsc(585, 'triangle', t + 0.28, 0.50, 0.08, 1170);
+    setStatus('נוגן: מכרז נפתח');
+  }
+  function playAuctionClosed(){
+    if(!enabled) return;
+    initAudio();
+    stopAll();
+    const t = ctx.currentTime + 0.01;
+    playOsc(96, 'sine', t, 0.18, 0.26, 38);
+    playOsc(620, 'square', t, 0.045, 0.05, 180);
+    playNoise(t, 0.028, 0.018, 1400);
+    playOsc(180, 'triangle', t + 0.03, 0.08, 0.03, 95);
+    setStatus('נוגן: מכרז נסגר');
+  }
+  function playYouAreLeading(){
+    if(!enabled) return;
+    initAudio();
+    stopAll();
+    const t = ctx.currentTime + 0.01;
+    playOsc(880, 'sine', t, 0.08, 0.10);
+    playOsc(1174, 'triangle', t + 0.08, 0.11, 0.08);
+    setStatus('נוגן: אתה מוביל כרגע');
+  }
+  function demoSequence(){
+    if(!enabled) return;
+    initAudio();
+    stopAll();
+    setStatus('דמו רצף אירועים התחיל');
+    playAuctionOpen();
+    setTimeout(() => enabled && playNewBid(), 1100);
+    setTimeout(() => enabled && playBidAccepted(), 1800);
+    setTimeout(() => enabled && playOutbid(), 2800);
+    setTimeout(() => enabled && playCountdownTick(), 3600);
+    setTimeout(() => enabled && playAuctionClosed(), 5600);
+  }
+  updateVolume();
+  updateTickRate();
+</script>
+</body>
+</html>
