@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Navbar from '@/components/ui/Navbar';
 import { useAllAuctions } from '@/lib/hooks';
 import { AuctionStatusBadge } from '@/components/ui/StatusBadge';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { SkeletonGrid } from '@/components/ui/Skeleton';
 import LiveBadge from '@/components/ui/LiveBadge';
 
 export default function AuctionsPage() {
@@ -48,7 +48,7 @@ export default function AuctionsPage() {
         </div>
 
         {loading ? (
-          <LoadingSpinner />
+          <SkeletonGrid count={6} />
         ) : filtered.length === 0 ? (
           <div className="text-center py-12 text-text-secondary">
             <div className="text-4xl mb-3">📭</div>

@@ -147,7 +147,7 @@ export default function AuctioneerConsole() {
   const itemImage = item?.images?.length
     ? item.images[0]
     : item
-      ? `https://placehold.co/400x250/1E1E1E/6C63FF?text=${encodeURIComponent(item.title)}`
+      ? `https://placehold.co/400x250/1A1F2E/433BFF?text=${encodeURIComponent(item.title)}`
       : null;
 
   return (

@@ -5,7 +5,7 @@ import Navbar from '@/components/ui/Navbar';
 import LiveBadge from '@/components/ui/LiveBadge';
 import { useAllAuctions, useLiveAuction } from '@/lib/hooks';
 import { AuctionStatusBadge } from '@/components/ui/StatusBadge';
-import { formatPrice } from '@/lib/auction-utils';
+import { SkeletonGrid } from '@/components/ui/Skeleton';
 
 export default function HomePage() {
   const { auctions, loading } = useAllAuctions();
@@ -19,24 +19,24 @@ export default function HomePage() {
 
       {/* Hero Section */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-accent/5 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-br from-[#433BFF]/8 via-transparent to-[#89A6FB]/5" />
         <div className="max-w-5xl mx-auto px-4 py-20 md:py-32 text-center relative">
-          <div className="inline-flex items-center gap-2 bg-accent/10 text-accent px-4 py-2 rounded-full text-sm font-medium mb-6">
+          <div className="inline-flex items-center gap-2 bg-accent/10 text-accent-light px-4 py-2 rounded-full text-sm font-medium mb-6">
             פלטפורמת מכרזים חיים
           </div>
           <h1 className="text-4xl md:text-6xl font-black leading-tight mb-6">
-            הדרך החדשה לקנות ולמכור.
+            אצלנו אתם קובעים
             <br />
-            <span className="text-accent">מכרזים חיים בזמן אמת.</span>
+            <span className="brand-gradient-text">את המחיר!</span>
           </h1>
           <p className="text-text-secondary text-lg md:text-xl max-w-2xl mx-auto mb-8">
-            פלטפורמת מכרזים בלייב הראשונה בישראל. צפו, הציעו והשתתפו במכרזים חיים של ספקים ועסקים מובילים
+            מכירות פומביות מדי שבוע על רכבים מכל הקטגוריות — יוקרה, משפחתיות, ג&apos;יפים ועוד
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link href="/auctions" className="btn-dark text-base px-8 py-4 rounded-xl">
               לצפייה במכרזים פעילים
             </Link>
-            <Link href="/register" className="btn-accent text-base px-8 py-4 rounded-xl">
+            <Link href="/register" className="brand-gradient text-white text-base px-8 py-4 rounded-xl font-semibold transition-smooth hover:opacity-90">
               להשתתפות במכרז
             </Link>
           </div>
@@ -71,9 +71,11 @@ export default function HomePage() {
       )}
 
       {/* Upcoming Auctions */}
-      {upcomingAuctions.length > 0 && (
-        <section className="max-w-5xl mx-auto px-4 py-12">
-          <h2 className="text-xl font-bold mb-6">מכרזים קרובים</h2>
+      <section className="max-w-5xl mx-auto px-4 py-12">
+        <h2 className="text-xl font-bold mb-6">מכרזים קרובים</h2>
+        {loading ? (
+          <SkeletonGrid count={3} />
+        ) : upcomingAuctions.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {upcomingAuctions.map((auction) => (
               <Link
@@ -92,8 +94,10 @@ export default function HomePage() {
               </Link>
             ))}
           </div>
-        </section>
-      )}
+        ) : (
+          <div className="text-center py-8 text-text-secondary">אין מכרזים קרובים כרגע</div>
+        )}
+      </section>
 
       {/* Features Section */}
       <section className="max-w-5xl mx-auto px-4 py-16">
@@ -130,7 +134,7 @@ export default function HomePage() {
       {/* Footer */}
       <footer className="border-t border-border py-8">
         <div className="max-w-5xl mx-auto px-4 text-center text-text-secondary text-sm">
-          <p>© 2026 מרכז המכרזים הארצי — NBC. כל הזכויות שמורות.</p>
+          <p>© 2026 מרכז המכרזים הארצי. כל הזכויות שמורות.</p>
         </div>
       </footer>
     </div>
@@ -150,7 +154,7 @@ function Feature({ icon, title, desc }: { icon: string; title: string; desc: str
 function Stat({ value, label }: { value: string; label: string }) {
   return (
     <div>
-      <div className="text-2xl md:text-3xl font-black text-accent">{value}</div>
+      <div className="text-2xl md:text-3xl font-black brand-gradient-text">{value}</div>
       <div className="text-sm text-text-secondary mt-1">{label}</div>
     </div>
   );

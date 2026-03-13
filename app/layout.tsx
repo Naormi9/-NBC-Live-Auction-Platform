@@ -3,8 +3,8 @@ import './globals.css';
 import { Providers } from './providers';
 
 export const metadata: Metadata = {
-  title: 'מרכז המכרזים הארצי | NBC',
-  description: 'פלטפורמת מכרזים בלייב הראשונה בישראל. צפו, הציעו והשתתפו במכרזים חיים של ספקים ועסקים מובילים',
+  title: 'מרכז המכרזים הארצי',
+  description: 'מכירות פומביות מדי שבוע על רכבים מכל הקטגוריות. צפו, הציעו והשתתפו במכרזים חיים',
   manifest: '/manifest.json',
   icons: { icon: '/favicon.svg' },
 };

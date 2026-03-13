@@ -3,11 +3,12 @@
 @tailwind utilities;
 
 :root {
-  --bg-primary: #0D0D0D;
-  --bg-surface: #141414;
-  --bg-elevated: #1E1E1E;
-  --accent: #6C63FF;
-  --accent-hover: #5A52E0;
+  --bg-primary: #080F0F;
+  --bg-surface: #0E1515;
+  --bg-elevated: #1A1F2E;
+  --accent: #433BFF;
+  --accent-hover: #3730D9;
+  --accent-light: #89A6FB;
   --bid-price: #00D4AA;
   --text-primary: #FFFFFF;
   --text-secondary: #A0A0A0;
@@ -48,10 +49,22 @@ body {
 
 /* Glass morphism utility */
 .glass {
-  background: rgba(20, 20, 20, 0.8);
+  background: rgba(14, 21, 21, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border);
+}
+
+/* Brand gradient */
+.brand-gradient {
+  background: linear-gradient(135deg, #433BFF, #89A6FB);
+}
+
+.brand-gradient-text {
+  background: linear-gradient(135deg, #433BFF, #89A6FB);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 /* Bid price highlight */
@@ -83,6 +96,29 @@ body {
 @keyframes timerPulse {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.05); }
+}
+
+/* Stronger timer pulse for last 5 seconds */
+.timer-pulse-strong {
+  animation: timerPulseStrong 0.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes timerPulseStrong {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+/* Skeleton shimmer */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-elevated) 25%, rgba(67, 59, 255, 0.06) 50%, var(--bg-elevated) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 0.5rem;
 }
 
 /* Smooth transitions */

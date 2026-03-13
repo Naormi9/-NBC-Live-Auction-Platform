@@ -123,7 +123,7 @@ export default function LiveRoom() {
       <div className="glass sticky top-0 z-40 border-b border-border">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-lg font-bold">NBC</span>
+            <span className="text-sm font-black">מרכז <span className="brand-gradient-text">המכרזים</span></span>
             <LiveBadge />
             <span className="text-sm text-text-secondary hidden md:inline">{auction.title}</span>
           </div>
