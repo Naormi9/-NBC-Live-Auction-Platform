@@ -1,11 +1,11 @@
 {
-  "name": "מרכז המכרזים הארצי — NBC",
-  "short_name": "NBC מכרזים",
+  "name": "מרכז המכרזים הארצי",
+  "short_name": "מרכז המכרזים",
   "description": "פלטפורמת מכרזים בלייב הראשונה בישראל",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0D0D0D",
-  "theme_color": "#6C63FF",
+  "background_color": "#080F0F",
+  "theme_color": "#433BFF",
   "dir": "rtl",
   "lang": "he",
   "icons": []

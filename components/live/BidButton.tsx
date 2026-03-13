@@ -85,8 +85,9 @@ export default function BidButton({ auction, item, registered }: BidButtonProps)
     <button
       onClick={handleBid}
       disabled={submitting}
-      className={`w-full py-4 rounded-xl font-bold text-lg transition-smooth
-        bg-accent hover:bg-accent-hover
+      className={`w-full py-5 rounded-xl font-black text-xl transition-smooth
+        brand-gradient shadow-lg shadow-[#433BFF]/30
+        active:scale-[0.98] transition-transform
         text-white disabled:opacity-50`}
     >
       {submitting ? 'שולח...' : `הצע ${formatPrice(nextBid)} ↑`}

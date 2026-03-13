@@ -21,8 +21,8 @@ export default function Navbar() {
     <nav className="glass sticky top-0 z-50 border-b border-border">
       <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
         <div className="flex items-center gap-6">
-          <Link href="/" className="text-xl font-bold text-white">
-            NBC <span className="text-accent">מכרזים</span>
+          <Link href="/" className="text-lg font-black text-white">
+            מרכז <span className="brand-gradient-text">המכרזים</span>
           </Link>
           <div className="hidden md:flex items-center gap-4">
             <Link href="/auctions" className="text-text-secondary hover:text-white transition-smooth text-sm">

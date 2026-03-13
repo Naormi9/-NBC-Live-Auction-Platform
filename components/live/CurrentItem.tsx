@@ -15,7 +15,7 @@ export default function CurrentItem({ item, totalItems, currentRound, increment 
   const [activeImage, setActiveImage] = useState(0);
 
   const placeholderImages = [
-    `https://placehold.co/800x500/1E1E1E/6C63FF?text=${encodeURIComponent(item.title)}`,
+    `https://placehold.co/800x500/1A1F2E/433BFF?text=${encodeURIComponent(item.title)}`,
   ];
   const images = item.images?.length > 0 ? item.images : placeholderImages;
 

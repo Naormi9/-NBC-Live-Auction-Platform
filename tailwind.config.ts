@@ -9,11 +9,12 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        'bg-primary': '#0D0D0D',
-        'bg-surface': '#141414',
-        'bg-elevated': '#1E1E1E',
-        accent: '#6C63FF',
-        'accent-hover': '#5A52E0',
+        'bg-primary': '#080F0F',
+        'bg-surface': '#0E1515',
+        'bg-elevated': '#1A1F2E',
+        accent: '#433BFF',
+        'accent-hover': '#3730D9',
+        'accent-light': '#89A6FB',
         'bid-price': '#00D4AA',
         'text-primary': '#FFFFFF',
         'text-secondary': '#A0A0A0',
