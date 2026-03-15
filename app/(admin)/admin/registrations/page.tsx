@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { ref, onValue, update } from 'firebase/database';
-import { db } from '@/lib/firebase';
+import { ref, onValue } from 'firebase/database';
+import { db, auth } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { isAllowedAdmin } from '@/lib/admin-allowlist';
 import Navbar from '@/components/ui/Navbar';
@@ -113,13 +113,27 @@ export default function AdminRegistrationsPage() {
     return c;
   }, [users]);
 
-  // Update user verification status
+  // Update user verification status via secured API route
   const handleUpdateStatus = async (uid: string, newStatus: VerificationStatus) => {
+    if (!auth.currentUser) {
+      toast.error('לא מחובר');
+      return;
+    }
     setUpdatingUid(uid);
     try {
-      await update(ref(db, `users/${uid}`), {
-        verificationStatus: newStatus,
+      const token = await auth.currentUser.getIdToken();
+      const res = await fetch('/api/admin/update-verification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ targetUid: uid, newStatus }),
       });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'שגיאה בעדכון סטטוס');
+      }
       toast.success(`סטטוס עודכן: ${STATUS_LABELS[newStatus]}`);
     } catch (err: any) {
       toast.error(err.message || 'שגיאה בעדכון סטטוס');

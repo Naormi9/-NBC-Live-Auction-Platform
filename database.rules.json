@@ -10,14 +10,14 @@
       ".read": true,
       ".indexOn": ["auctionId", "order"],
       "$itemId": {
-        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager')"
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager') && (auth.token.email === 'ceo@m-motors.co.il' || auth.token.email === 'office@m-motors.co.il')"
       }
     },
     "auctions": {
       ".read": true,
       ".indexOn": ["status"],
       "$auctionId": {
-        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager')"
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager') && (auth.token.email === 'ceo@m-motors.co.il' || auth.token.email === 'office@m-motors.co.il')"
       }
     },
     "pre_bids": {
@@ -45,7 +45,7 @@
       "$auctionId": {
         "$userId": {
           ".read": "auth != null && (auth.uid === $userId || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager')",
-          ".write": "auth != null && (auth.uid === $userId || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager')"
+          ".write": "auth != null && ((auth.uid === $userId && newData.child('status').val() !== 'approved') || (root.child('users').child(auth.uid).child('role').val() === 'admin' && (auth.token.email === 'ceo@m-motors.co.il' || auth.token.email === 'office@m-motors.co.il')))"
         }
       }
     },
@@ -69,11 +69,11 @@
           ".validate": "newData.isString() && newData.val().length === 9"
         },
         "role": {
-          ".write": "auth != null && ((auth.uid === $userId && !data.exists() && newData.val() === 'participant') || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+          ".write": "auth != null && ((auth.uid === $userId && !data.exists() && newData.val() === 'participant') || (root.child('users').child(auth.uid).child('role').val() === 'admin' && (auth.token.email === 'ceo@m-motors.co.il' || auth.token.email === 'office@m-motors.co.il')))",
           ".validate": "newData.isString() && (newData.val() === 'participant' || newData.val() === 'house_manager' || newData.val() === 'admin')"
         },
         "verificationStatus": {
-          ".write": "auth != null && ((auth.uid === $userId && !data.exists()) || (auth.uid === $userId && data.val() === 'pending_verification' && newData.val() === 'pending_approval') || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+          ".write": "auth != null && ((auth.uid === $userId && !data.exists()) || (auth.uid === $userId && data.val() === 'pending_verification' && newData.val() === 'pending_approval'))",
           ".validate": "newData.isString() && (newData.val() === 'pending_verification' || newData.val() === 'pending_approval' || newData.val() === 'approved' || newData.val() === 'rejected')"
         },
         "termsAcceptedAt": {
@@ -99,7 +99,7 @@
       "$auctionId": {
         "$itemId": {
           "$bidId": {
-            ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager')",
+            ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager') && (auth.token.email === 'ceo@m-motors.co.il' || auth.token.email === 'office@m-motors.co.il')",
             ".validate": "newData.hasChildren(['userId','userDisplayName','amount','round','timestamp'])"
           }
         }
@@ -108,7 +108,7 @@
     "houses": {
       ".read": "auth != null",
       "$houseId": {
-        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin' && (auth.token.email === 'ceo@m-motors.co.il' || auth.token.email === 'office@m-motors.co.il')"
       }
     },
     "presence": {
@@ -121,8 +121,8 @@
     },
     "timer_locks": {
       "$auctionId": {
-        ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
-        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+        ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin' && (auth.token.email === 'ceo@m-motors.co.il' || auth.token.email === 'office@m-motors.co.il')",
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin' && (auth.token.email === 'ceo@m-motors.co.il' || auth.token.email === 'office@m-motors.co.il')"
       }
     }
   }
