@@ -50,8 +50,9 @@
       }
     },
     "users": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
       "$userId": {
-        ".read": "auth != null && (auth.uid === $userId || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+        ".read": "auth != null && auth.uid === $userId",
         "displayName": {
           ".write": "auth != null && auth.uid === $userId",
           ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100"
