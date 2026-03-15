@@ -40,59 +40,68 @@ const STATUS_COLORS: Record<VerificationStatus, string> = {
 type FilterOption = VerificationStatus | 'all' | 'callback';
 
 export default function AdminRegistrationsPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [users, setUsers] = useState<RegisteredUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<FilterOption>('all');
+  const [filter, setFilter] = useState<FilterOption>('pending_approval');
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [updatingUid, setUpdatingUid] = useState<string | null>(null);
 
-  // Server-side admin check (redundant with layout, but defense in depth)
-  const isAdmin = user && isAllowedAdmin(user.email);
+  // Admin check — wait for auth to finish before deciding
+  const isAdmin = !authLoading && user && isAllowedAdmin(user.email);
 
-  // Fetch all users in real-time
+  // Fetch all users in real-time from /users (NOT /registrations)
   useEffect(() => {
     if (!isAdmin) return;
     const usersRef = ref(db, 'users');
-    const unsub = onValue(usersRef, (snap) => {
-      if (!snap.exists()) {
+    const unsub = onValue(
+      usersRef,
+      (snap) => {
+        if (!snap.exists()) {
+          setUsers([]);
+          setLoading(false);
+          return;
+        }
+        const data = snap.val();
+        const list: RegisteredUser[] = Object.entries(data)
+          .map(([uid, val]: [string, any]) => ({
+            uid,
+            displayName: val.displayName || '',
+            email: val.email || '',
+            phone: val.phone || '',
+            idNumber: val.idNumber || '',
+            verificationStatus: val.verificationStatus || 'pending_verification',
+            callbackRequested: val.callbackRequested || false,
+            signatureData: val.signatureData || null,
+            createdAt: val.createdAt || 0,
+            termsAcceptedAt: val.termsAcceptedAt || null,
+          }))
+          // Exclude admin users from the list
+          .filter((u) => u.verificationStatus !== undefined && !isAllowedAdmin(u.email));
+
+        // Sort: pending_approval first, then pending_verification, then others
+        const statusOrder: Record<string, number> = {
+          pending_approval: 0,
+          pending_verification: 1,
+          rejected: 2,
+          approved: 3,
+        };
+        list.sort((a, b) => {
+          const orderDiff = (statusOrder[a.verificationStatus] ?? 9) - (statusOrder[b.verificationStatus] ?? 9);
+          if (orderDiff !== 0) return orderDiff;
+          return (b.createdAt || 0) - (a.createdAt || 0);
+        });
+
+        setUsers(list);
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Failed to read /users:', error.message);
+        toast.error('שגיאה בטעינת נרשמים – בדוק הרשאות RTDB');
         setUsers([]);
         setLoading(false);
-        return;
       }
-      const data = snap.val();
-      const list: RegisteredUser[] = Object.entries(data)
-        .map(([uid, val]: [string, any]) => ({
-          uid,
-          displayName: val.displayName || '',
-          email: val.email || '',
-          phone: val.phone || '',
-          idNumber: val.idNumber || '',
-          verificationStatus: val.verificationStatus || 'pending_verification',
-          callbackRequested: val.callbackRequested || false,
-          signatureData: val.signatureData || null,
-          createdAt: val.createdAt || 0,
-          termsAcceptedAt: val.termsAcceptedAt || null,
-        }))
-        // Exclude admin users from the list
-        .filter((u) => u.verificationStatus !== undefined && !isAllowedAdmin(u.email));
-
-      // Sort: pending_approval first, then pending_verification, then others
-      const statusOrder: Record<string, number> = {
-        pending_approval: 0,
-        pending_verification: 1,
-        rejected: 2,
-        approved: 3,
-      };
-      list.sort((a, b) => {
-        const orderDiff = (statusOrder[a.verificationStatus] ?? 9) - (statusOrder[b.verificationStatus] ?? 9);
-        if (orderDiff !== 0) return orderDiff;
-        return (b.createdAt || 0) - (a.createdAt || 0);
-      });
-
-      setUsers(list);
-      setLoading(false);
-    });
+    );
     return () => unsub();
   }, [isAdmin]);
 
@@ -141,6 +150,14 @@ export default function AdminRegistrationsPage() {
       setUpdatingUid(null);
     }
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
 
   if (!isAdmin) {
     return (
