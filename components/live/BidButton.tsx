@@ -7,6 +7,7 @@ import { submitBid } from '@/lib/auction-actions';
 import { playBidSound } from '@/lib/sounds';
 import { Auction, AuctionItem } from '@/lib/types';
 import toast from 'react-hot-toast';
+import Link from 'next/link';
 
 interface BidButtonProps {
   auction: Auction;
@@ -17,15 +18,37 @@ interface BidButtonProps {
 export default function BidButton({ auction, item, registered }: BidButtonProps) {
   const { user, profile } = useAuth();
   const [submitting, setSubmitting] = useState(false);
-  // Ref-based guard prevents double-clicks even before React re-renders
   const submittingRef = useRef(false);
-  // Track last submitted bid to suppress duplicate toasts
   const lastBidRef = useRef<string | null>(null);
 
   if (!user) {
     return (
-      <button disabled className="w-full py-4 rounded-xl bg-bg-elevated text-text-secondary font-semibold text-lg cursor-not-allowed">
+      <Link href="/login?redirect=/live" className="block w-full py-4 rounded-xl bg-bg-elevated text-center text-accent font-semibold text-lg hover:bg-bg-elevated/80 transition-smooth">
         התחבר כדי להשתתף
+      </Link>
+    );
+  }
+
+  if (profile?.verificationStatus === 'pending_verification') {
+    return (
+      <Link href="/verify" className="block w-full py-4 rounded-xl bg-accent/20 text-center text-accent font-semibold text-lg border border-accent/30 hover:bg-accent/30 transition-smooth">
+        השלם אימות כדי להציע
+      </Link>
+    );
+  }
+
+  if (profile?.verificationStatus === 'pending_approval') {
+    return (
+      <button disabled className="w-full py-4 rounded-xl bg-yellow-500/10 text-yellow-400 font-semibold text-lg cursor-not-allowed border border-yellow-500/20">
+        החשבון ממתין לאישור
+      </button>
+    );
+  }
+
+  if (profile?.verificationStatus === 'rejected') {
+    return (
+      <button disabled className="w-full py-4 rounded-xl bg-red-500/10 text-red-400 font-semibold text-lg cursor-not-allowed border border-red-500/20">
+        החשבון נדחה — פנה לתמיכה
       </button>
     );
   }
@@ -33,15 +56,7 @@ export default function BidButton({ auction, item, registered }: BidButtonProps)
   if (!registered) {
     return (
       <button disabled className="w-full py-4 rounded-xl bg-bg-elevated text-text-secondary font-semibold text-lg cursor-not-allowed">
-        הירשם להשתתפות
-      </button>
-    );
-  }
-
-  if (profile?.verificationStatus !== 'approved') {
-    return (
-      <button disabled className="w-full py-4 rounded-xl bg-bg-elevated text-text-secondary font-semibold text-lg cursor-not-allowed">
-        החשבון ממתין לאישור
+        ממתין לרישום...
       </button>
     );
   }
@@ -65,16 +80,14 @@ export default function BidButton({ auction, item, registered }: BidButtonProps)
   const nextBid = getMinBid(item.currentBid, auction.settings, auction.currentRound);
 
   const handleBid = useCallback(async () => {
-    // Double-click guard via ref (synchronous, before any async)
     if (submittingRef.current) return;
 
     const validation = canPlaceBid(user.uid, item, auction, nextBid);
     if (!validation.valid) {
-      toast.error(validation.error!);
+      toast.error(validation.error!, { id: 'bid-validation' });
       return;
     }
 
-    // Dedup: prevent same bid from showing multiple toasts
     const bidKey = `${item.id}-${nextBid}-${auction.currentRound}`;
     if (lastBidRef.current === bidKey) return;
 
@@ -91,14 +104,12 @@ export default function BidButton({ auction, item, registered }: BidButtonProps)
         auction.currentRound as 1 | 2 | 3
       );
       playBidSound();
-      toast.success(`הצעה של ${formatPrice(nextBid)} נשלחה!`);
+      toast.success(`הצעה של ${formatPrice(nextBid)} נשלחה!`, { id: `bid-${bidKey}` });
     } catch (err: any) {
-      // Allow retry on error
       lastBidRef.current = null;
-      toast.error(err.message || 'שגיאה בשליחת ההצעה');
+      toast.error(err.message || 'שגיאה בשליחת ההצעה', { id: 'bid-error' });
     } finally {
       setSubmitting(false);
-      // Allow new bid after a short cooldown (prevents rapid re-clicks)
       setTimeout(() => { submittingRef.current = false; }, 1500);
     }
   }, [user, item, auction, nextBid]);

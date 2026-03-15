@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { AuctionItem } from '@/lib/types';
 import { formatPrice } from '@/lib/auction-utils';
 
@@ -9,9 +10,17 @@ interface CatalogSidebarProps {
 }
 
 export default function CatalogSidebar({ items, currentItemId }: CatalogSidebarProps) {
+  const activeRef = useRef<HTMLDivElement>(null);
   const activeItem = items.find((i) => i.id === currentItemId);
   const upcomingItems = items.filter((i) => i.status === 'pending');
   const completedItems = items.filter((i) => i.status === 'sold' || i.status === 'unsold');
+
+  // Auto-scroll to active item when it changes
+  useEffect(() => {
+    if (activeRef.current) {
+      activeRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [currentItemId]);
 
   return (
     <div className="space-y-3">
@@ -21,7 +30,7 @@ export default function CatalogSidebar({ items, currentItemId }: CatalogSidebarP
 
       {/* Active item */}
       {activeItem && (
-        <div className="px-1">
+        <div className="px-1" ref={activeRef}>
           <div className="text-[10px] uppercase tracking-wider text-accent font-bold px-2 mb-1">על הבמה</div>
           <ItemRow item={activeItem} isActive />
         </div>

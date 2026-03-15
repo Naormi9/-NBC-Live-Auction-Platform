@@ -219,7 +219,7 @@ export default function LiveRoom() {
       {/* Mobile Layout */}
       <div className="lg:hidden">
         {item ? (
-          <div className="space-y-3 pb-24">
+          <div className="space-y-3 pb-28">
             {/* Car image */}
             <CurrentItem item={item} totalItems={items.length} currentRound={auction.currentRound} increment={currentIncrement} />
 
@@ -295,7 +295,7 @@ export default function LiveRoom() {
 
         {/* Mobile sticky bottom bar */}
         {item && (
-          <div className="fixed bottom-0 left-0 right-0 glass border-t border-border p-3 flex items-center gap-3 z-50">
+          <div className="fixed bottom-0 left-0 right-0 glass border-t border-border p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-center gap-3 z-50">
             <div className="flex-shrink-0">
               <AuctionTimer secondsLeft={secondsLeft} currentRound={auction.currentRound} />
             </div>

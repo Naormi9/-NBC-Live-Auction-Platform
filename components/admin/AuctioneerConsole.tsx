@@ -36,7 +36,7 @@ export default function AuctioneerConsole() {
   const [participants, setParticipants] = useState<any[]>([]);
   const [participantCount, setParticipantCount] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
-  const prevPendingCountRef = useRef(0);
+  const prevPendingCountRef = useRef(-1);
   const [updatingUid, setUpdatingUid] = useState<string | null>(null);
 
   // Auto-advance between rounds when timer expires
@@ -64,12 +64,10 @@ export default function AuctioneerConsole() {
       setParticipants(list);
       setParticipantCount(list.length);
       const newPending = list.filter((u: any) => u.verificationStatus === 'pending_approval' || u.verificationStatus === 'pending_verification').length;
-      // Notify when new pending users arrive
-      if (newPending > prevPendingCountRef.current && prevPendingCountRef.current >= 0) {
+      // Notify when new pending users arrive (skip initial load when ref is -1)
+      if (prevPendingCountRef.current >= 0 && newPending > prevPendingCountRef.current) {
         const diff = newPending - prevPendingCountRef.current;
-        if (prevPendingCountRef.current > 0) {
-          toast(`${diff} נרשמים חדשים ממתינים לאישור`, { icon: '🔔' });
-        }
+        toast(`${diff} נרשמים חדשים ממתינים לאישור`, { icon: '🔔', id: 'new-pending' });
       }
       prevPendingCountRef.current = newPending;
       setPendingCount(newPending);
@@ -88,9 +86,9 @@ export default function AuctioneerConsole() {
         body: JSON.stringify({ targetUid: uid, newStatus: 'approved' }),
       });
       if (!res.ok) throw new Error('Failed');
-      toast.success('אושר');
+      toast.success('אושר', { id: `approve-${uid}` });
     } catch {
-      toast.error('שגיאה באישור');
+      toast.error('שגיאה באישור', { id: `approve-err-${uid}` });
     } finally {
       setUpdatingUid(null);
     }
@@ -107,9 +105,9 @@ export default function AuctioneerConsole() {
         body: JSON.stringify({ targetUid: uid, newStatus: 'rejected' }),
       });
       if (!res.ok) throw new Error('Failed');
-      toast.success('נדחה');
+      toast.success('נדחה', { id: `reject-${uid}` });
     } catch {
-      toast.error('שגיאה');
+      toast.error('שגיאה', { id: `reject-err-${uid}` });
     } finally {
       setUpdatingUid(null);
     }
@@ -130,9 +128,9 @@ export default function AuctioneerConsole() {
     if (!auctionId) return;
     try {
       const msg = await actions.activateNextItem(auctionId);
-      toast.success(msg);
+      toast.success(msg, { id: 'activate-item' });
     } catch (err: any) {
-      toast.error(err.message || 'שגיאה');
+      toast.error(err.message || 'שגיאה', { id: 'activate-err' });
     }
   };
 
@@ -140,9 +138,9 @@ export default function AuctioneerConsole() {
     if (!auctionId) return;
     try {
       const msg = await actions.addTime(auctionId, seconds);
-      toast.success(msg);
+      toast.success(msg, { id: 'add-time' });
     } catch (err: any) {
-      toast.error(err.message || 'שגיאה');
+      toast.error(err.message || 'שגיאה', { id: 'add-time-err' });
     }
   };
 
@@ -150,9 +148,9 @@ export default function AuctioneerConsole() {
     if (!auctionId) return;
     try {
       const msg = await actions.pauseTimer(auctionId);
-      toast.success(msg);
+      toast.success(msg, { id: 'timer-control' });
     } catch (err: any) {
-      toast.error(err.message || 'שגיאה');
+      toast.error(err.message || 'שגיאה', { id: 'timer-err' });
     }
   };
 
@@ -160,9 +158,9 @@ export default function AuctioneerConsole() {
     if (!auctionId) return;
     try {
       const msg = await actions.resumeTimer(auctionId);
-      toast.success(msg);
+      toast.success(msg, { id: 'timer-control' });
     } catch (err: any) {
-      toast.error(err.message || 'שגיאה');
+      toast.error(err.message || 'שגיאה', { id: 'timer-err' });
     }
   };
 
@@ -171,9 +169,9 @@ export default function AuctioneerConsole() {
     setIsAdvancing(true);
     try {
       const msg = await actions.closeItemAndAdvance(auctionId, markAsSold);
-      toast.success(msg);
+      toast.success(msg, { id: 'advance-item' });
     } catch (err: any) {
-      toast.error(err.message || 'שגיאה בביצוע הפעולה');
+      toast.error(err.message || 'שגיאה בביצוע הפעולה', { id: 'advance-err' });
     } finally {
       setIsAdvancing(false);
     }
@@ -184,9 +182,9 @@ export default function AuctioneerConsole() {
     setIsAdvancing(true);
     try {
       const msg = await actions.advanceRound(auctionId);
-      toast.success(msg);
+      toast.success(msg, { id: 'advance-round' });
     } catch (err: any) {
-      toast.error(err.message || 'שגיאה');
+      toast.error(err.message || 'שגיאה', { id: 'advance-round-err' });
     } finally {
       setIsAdvancing(false);
     }
@@ -197,9 +195,9 @@ export default function AuctioneerConsole() {
     setIsAdvancing(true);
     try {
       const msg = await actions.endAuction(auctionId);
-      toast.success(msg);
+      toast.success(msg, { id: 'end-auction' });
     } catch (err: any) {
-      toast.error(err.message || 'שגיאה');
+      toast.error(err.message || 'שגיאה', { id: 'end-auction-err' });
     } finally {
       setIsAdvancing(false);
     }
@@ -596,6 +594,8 @@ export default function AuctioneerConsole() {
 
       {/* Floating Participants Drawer */}
       {showParticipants && (
+        <>
+        <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setShowParticipants(false)} />
         <div className="fixed inset-y-0 left-0 z-50 w-80 bg-bg-primary/95 backdrop-blur-xl border-r border-border shadow-2xl flex flex-col">
           <div className="p-4 border-b border-border flex items-center justify-between">
             <h2 className="font-bold text-sm">משתתפים ({participantCount})</h2>
@@ -650,6 +650,7 @@ export default function AuctioneerConsole() {
             })}
           </div>
         </div>
+        </>
       )}
     </div>
   );

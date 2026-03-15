@@ -22,6 +22,7 @@ export default function RegisterPrompt({ auctionId, isLoggedIn }: RegisterPrompt
       <div className="glass rounded-xl p-4 text-center space-y-2 border border-yellow-500/30">
         <p className="text-sm font-semibold text-yellow-400">החשבון שלך ממתין לאישור</p>
         <p className="text-xs text-text-secondary">נציג יאשר את חשבונך בקרוב. תוכל להציע ברגע שתאושר.</p>
+        <p className="text-[10px] text-text-secondary/50">העמוד יתעדכן אוטומטית — אין צורך לרענן</p>
       </div>
     );
   }
@@ -47,12 +48,12 @@ export default function RegisterPrompt({ auctionId, isLoggedIn }: RegisterPrompt
     return (
       <div className="glass rounded-xl p-4 text-center space-y-2 border border-red-500/30">
         <p className="text-sm font-semibold text-red-400">החשבון שלך נדחה</p>
-        <p className="text-xs text-text-secondary">פנה לתמיכה לבירור.</p>
+        <p className="text-xs text-text-secondary">פנה לתמיכה לבירור: office@m-motors.co.il</p>
       </div>
     );
   }
 
-  // Not logged in — direct to full registration page (one unified flow)
+  // Not logged in — direct to full registration page with redirect back to live
   return (
     <div className="glass rounded-xl p-4 text-center space-y-3 border border-accent/30">
       <p className="text-sm font-semibold">
@@ -63,13 +64,13 @@ export default function RegisterPrompt({ auctionId, isLoggedIn }: RegisterPrompt
       </p>
       <div className="flex gap-3 justify-center">
         <Link
-          href="/login"
+          href="/login?redirect=/live"
           className="btn-dark px-6 py-2 rounded-lg text-sm"
         >
           התחברות
         </Link>
         <Link
-          href="/register"
+          href="/register?redirect=/live"
           className="btn-accent px-6 py-2 rounded-lg text-sm font-semibold"
         >
           הרשמה חדשה
