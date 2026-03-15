@@ -3,6 +3,9 @@ import * as admin from 'firebase-admin';
 
 const db = admin.database();
 
+// Admin email allowlist - server-side enforcement
+const ADMIN_EMAILS = ['ceo@m-motors.co.il', 'office@m-motors.co.il'];
+
 // Default settings fallback
 const DEFAULT_SETTINGS = {
   round1: { increment: 1000, timerSeconds: 45 },
@@ -48,10 +51,18 @@ async function verifyAuth(req: functions.Request): Promise<admin.auth.DecodedIdT
 }
 
 async function verifyAdminRole(uid: string): Promise<void> {
+  // Check role in DB
   const snap = await db.ref(`/users/${uid}/role`).once('value');
   const role = snap.val();
   if (role !== 'admin' && role !== 'house_manager') {
     throw new Error('Admin or house_manager role required');
+  }
+
+  // Check email against allowlist (server-side enforcement)
+  const userRecord = await admin.auth().getUser(uid);
+  const email = userRecord.email?.toLowerCase().trim();
+  if (!email || !ADMIN_EMAILS.includes(email)) {
+    throw new Error('Email not in admin allowlist');
   }
 }
 

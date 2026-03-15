@@ -8,17 +8,41 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { LogoIcon } from '@/components/ui/Logo';
+import { validateIsraeliId } from '@/lib/id-validator';
+import SignaturePad from '@/components/registration/SignaturePad';
 
 export default function RegisterPage() {
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [idNumber, setIdNumber] = useState('');
   const [password, setPassword] = useState('');
+  const [signatureData, setSignatureData] = useState<string | null>(null);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate Israeli ID
+    if (!validateIsraeliId(idNumber)) {
+      toast.error('מספר ת"ז לא תקין');
+      return;
+    }
+
+    // Validate signature
+    if (!signatureData) {
+      toast.error('נדרשת חתימה דיגיטלית');
+      return;
+    }
+
+    // Validate terms
+    if (!termsAccepted) {
+      toast.error('יש לאשר את תקנון המכרז');
+      return;
+    }
+
     setLoading(true);
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
@@ -27,12 +51,17 @@ export default function RegisterPage() {
         displayName,
         email,
         phone,
+        idNumber: idNumber.padStart(9, '0'),
         role: 'participant',
         houseId: null,
         createdAt: serverTimestamp(),
+        verificationStatus: 'pending_verification',
+        termsAcceptedAt: Date.now(),
+        signatureData,
+        callbackRequested: false,
       });
-      toast.success('נרשמת בהצלחה!');
-      router.push('/');
+      toast.success('נרשמת בהצלחה! כעת יש לאמת את החשבון');
+      router.push('/verify');
     } catch (err: any) {
       if (err.code === 'auth/email-already-in-use') {
         toast.error('האימייל כבר רשום במערכת');
@@ -45,7 +74,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
+    <div className="min-h-screen flex items-center justify-center px-4 py-8">
       <div className="glass rounded-2xl p-8 w-full max-w-md space-y-6">
         <div className="text-center space-y-3">
           <div className="flex justify-center">
@@ -53,7 +82,7 @@ export default function RegisterPage() {
           </div>
           <h1 className="text-2xl font-bold">הרשמה</h1>
           <p className="text-text-secondary text-sm">
-            הצטרפו למרכז המכרזים הארצי
+            הצטרפו למכרזי מיכאלי מוטורס
           </p>
         </div>
 
@@ -69,18 +98,22 @@ export default function RegisterPage() {
               placeholder="ישראל ישראלי"
             />
           </div>
+
           <div>
-            <label className="block text-sm text-text-secondary mb-1">אימייל</label>
+            <label className="block text-sm text-text-secondary mb-1">תעודת זהות</label>
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              value={idNumber}
+              onChange={(e) => setIdNumber(e.target.value.replace(/\D/g, '').slice(0, 9))}
               required
+              maxLength={9}
+              inputMode="numeric"
               className="w-full bg-bg-elevated border border-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-accent transition-smooth"
-              placeholder="your@email.com"
+              placeholder="9 ספרות"
               dir="ltr"
             />
           </div>
+
           <div>
             <label className="block text-sm text-text-secondary mb-1">טלפון</label>
             <input
@@ -93,6 +126,20 @@ export default function RegisterPage() {
               dir="ltr"
             />
           </div>
+
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">אימייל</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="w-full bg-bg-elevated border border-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-accent transition-smooth"
+              placeholder="your@email.com"
+              dir="ltr"
+            />
+          </div>
+
           <div>
             <label className="block text-sm text-text-secondary mb-1">סיסמה</label>
             <input
@@ -106,6 +153,26 @@ export default function RegisterPage() {
               dir="ltr"
             />
           </div>
+
+          <SignaturePad onSignatureChange={setSignatureData} />
+
+          <div className="flex items-start gap-3 pt-2">
+            <input
+              type="checkbox"
+              id="terms"
+              checked={termsAccepted}
+              onChange={(e) => setTermsAccepted(e.target.checked)}
+              className="mt-1 accent-accent w-4 h-4 flex-shrink-0"
+            />
+            <label htmlFor="terms" className="text-sm text-text-secondary">
+              קראתי ואני מסכים/ה ל
+              <Link href="/terms" target="_blank" className="text-accent hover:underline mx-1">
+                תקנון המכרז
+              </Link>
+              ולתנאי השימוש
+            </label>
+          </div>
+
           <button
             type="submit"
             disabled={loading}

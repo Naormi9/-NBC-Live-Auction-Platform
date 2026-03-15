@@ -17,7 +17,7 @@ export default function AuctionCatalogPage() {
   const auctionId = params.id as string;
   const { auction, loading: auctionLoading } = useAuction(auctionId);
   const { items, loading: itemsLoading } = useCatalog(auctionId);
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { registered } = useRegistration(auctionId, user?.uid || null);
   const [preBidItem, setPreBidItem] = useState<string | null>(null);
   const [preBidAmount, setPreBidAmount] = useState('');
@@ -67,6 +67,10 @@ export default function AuctionCatalogPage() {
 
   const handlePreBid = async (itemId: string, item: any) => {
     if (!user || !preBidAmount || !auction) return;
+    if (profile?.verificationStatus !== 'approved') {
+      toast.error('החשבון שלך טרם אושר להשתתפות. עבור לעמוד האימות');
+      return;
+    }
     const amount = parseInt(preBidAmount);
     const openingPrice = item.openingPrice || 0;
     // Pre-bid increment from auction settings (default ₪500)

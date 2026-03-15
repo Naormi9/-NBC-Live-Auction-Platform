@@ -3,6 +3,7 @@ export type ItemStatus = 'pending' | 'active' | 'sold' | 'unsold';
 export type UserRole = 'participant' | 'house_manager' | 'admin';
 export type ChatRole = 'user' | 'auctioneer' | 'system';
 export type RegistrationStatus = 'pending' | 'approved';
+export type VerificationStatus = 'pending_verification' | 'pending_approval' | 'approved' | 'rejected';
 
 export interface RoundSettings {
   increment: number;
@@ -103,7 +104,12 @@ export interface UserProfile {
   displayName: string;
   email: string;
   phone: string;
+  idNumber: string;
   role: UserRole;
   houseId: string | null;
   createdAt: number;
+  verificationStatus: VerificationStatus;
+  termsAcceptedAt: number | null;
+  signatureData: string | null; // base64 PNG, max ~50KB
+  callbackRequested?: boolean;
 }

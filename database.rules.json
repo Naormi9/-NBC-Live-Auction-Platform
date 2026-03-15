@@ -2,7 +2,7 @@
   "rules": {
     "pending_bids": {
       "$bidId": {
-        ".write": "auth != null",
+        ".write": "auth != null && root.child('users').child(auth.uid).child('verificationStatus').val() === 'approved'",
         ".validate": "newData.hasChildren(['auctionId','itemId','userId','amount','timestamp']) && newData.child('userId').val() === auth.uid && newData.child('amount').isNumber() && newData.child('amount').val() > 0"
       }
     },
@@ -26,7 +26,7 @@
           ".read": "auth != null",
           "$userId": {
             ".read": "auth != null && auth.uid === $userId",
-            ".write": "auth != null && auth.uid === $userId",
+            ".write": "auth != null && auth.uid === $userId && root.child('users').child(auth.uid).child('verificationStatus').val() === 'approved'",
             ".validate": "newData.hasChildren(['userId','amount','timestamp']) && newData.child('userId').val() === auth.uid && newData.child('amount').isNumber() && newData.child('amount').val() > 0"
           }
         }
@@ -64,9 +64,27 @@
           ".write": "auth != null && ((auth.uid === $userId && !data.exists()) || root.child('users').child(auth.uid).child('role').val() === 'admin')",
           ".validate": "newData.isString()"
         },
+        "idNumber": {
+          ".write": "auth != null && auth.uid === $userId && !data.exists()",
+          ".validate": "newData.isString() && newData.val().length === 9"
+        },
         "role": {
           ".write": "auth != null && ((auth.uid === $userId && !data.exists() && newData.val() === 'participant') || root.child('users').child(auth.uid).child('role').val() === 'admin')",
           ".validate": "newData.isString() && (newData.val() === 'participant' || newData.val() === 'house_manager' || newData.val() === 'admin')"
+        },
+        "verificationStatus": {
+          ".write": "auth != null && ((auth.uid === $userId && !data.exists()) || (auth.uid === $userId && data.val() === 'pending_verification' && newData.val() === 'pending_approval') || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+          ".validate": "newData.isString() && (newData.val() === 'pending_verification' || newData.val() === 'pending_approval' || newData.val() === 'approved' || newData.val() === 'rejected')"
+        },
+        "termsAcceptedAt": {
+          ".write": "auth != null && auth.uid === $userId && !data.exists()"
+        },
+        "signatureData": {
+          ".write": "auth != null && auth.uid === $userId && !data.exists()",
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 70000"
+        },
+        "callbackRequested": {
+          ".write": "auth != null && (auth.uid === $userId || root.child('users').child(auth.uid).child('role').val() === 'admin')"
         },
         "houseId": {
           ".write": "auth != null && ((auth.uid === $userId && !data.exists()) || root.child('users').child(auth.uid).child('role').val() === 'admin')"

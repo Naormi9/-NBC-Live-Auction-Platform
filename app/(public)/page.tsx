@@ -24,7 +24,7 @@ export default function HomePage() {
         <div className="max-w-5xl mx-auto px-4 py-20 md:py-32 text-center relative">
           <div className="inline-flex items-center gap-2 bg-accent/10 text-accent-light px-4 py-2 rounded-full text-sm font-medium mb-6">
             <LogoIcon size={18} />
-            פלטפורמת מכרזים חיים
+            מכרזי מיכאלי מוטורס
           </div>
           <h1 className="text-4xl md:text-6xl font-black leading-tight mb-6">
             אצלנו אתם קובעים
@@ -32,7 +32,7 @@ export default function HomePage() {
             <span className="brand-gradient-text">את המחיר!</span>
           </h1>
           <p className="text-text-secondary text-lg md:text-xl max-w-2xl mx-auto mb-8">
-            מכירות פומביות מדי שבוע על רכבים מכל הקטגוריות — יוקרה, משפחתיות, ג&apos;יפים ועוד
+            מכרזי רכבים חיים של מיכאלי מוטורס — יוקרה, משפחתיות, ג&apos;יפים ועוד. הציעו מחיר והשתתפו בלייב
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link href="/auctions" className="btn-dark text-base px-8 py-4 rounded-xl">
@@ -103,7 +103,7 @@ export default function HomePage() {
 
       {/* Features Section */}
       <section className="max-w-5xl mx-auto px-4 py-16">
-        <h2 className="text-2xl font-bold text-center mb-12">למה מרכז המכרזים הארצי?</h2>
+        <h2 className="text-2xl font-bold text-center mb-12">למה מכרזי מיכאלי מוטורס?</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <Feature
             icon="⚡"
@@ -137,7 +137,7 @@ export default function HomePage() {
       <footer className="border-t border-border py-10">
         <div className="max-w-5xl mx-auto px-4 flex flex-col items-center gap-4">
           <LogoFull height={48} tm />
-          <p className="text-text-secondary text-sm">© 2026 מרכז המכרזים הארצי. כל הזכויות שמורות.</p>
+          <p className="text-text-secondary text-sm">© 2026 מיכאלי מוטורס. כל הזכויות שמורות.</p>
         </div>
       </footer>
     </div>

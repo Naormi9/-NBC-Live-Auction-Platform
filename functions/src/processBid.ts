@@ -24,6 +24,15 @@ export const processBid = functions.region('europe-west1').database
       return;
     }
 
+    // Verify user is approved before processing bid
+    const userSnap = await db.ref(`/users/${bid.userId}`).once('value');
+    const userData = userSnap.val();
+    if (!userData || userData.verificationStatus !== 'approved') {
+      console.warn(`Rejected bid from non-approved user: ${bid.userId}`);
+      await snapshot.ref.remove();
+      return;
+    }
+
     const itemRef = db.ref(`/auction_items/${bid.itemId}`);
     const auctionRef = db.ref(`/auctions/${bid.auctionId}`);
 

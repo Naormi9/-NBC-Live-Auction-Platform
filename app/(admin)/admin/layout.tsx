@@ -3,22 +3,22 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { isAllowedAdmin } from '@/lib/admin-allowlist';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, profile, loading } = useAuth();
   const router = useRouter();
 
+  const isAdmin = user && isAllowedAdmin(user.email) &&
+    (profile?.role === 'admin' || profile?.role === 'house_manager');
+
   useEffect(() => {
     if (loading) return;
-    if (!user) {
+    if (!user || !isAdmin) {
       router.push('/login');
-      return;
     }
-    if (profile && profile.role !== 'admin' && profile.role !== 'house_manager') {
-      router.push('/');
-    }
-  }, [user, profile, loading, router]);
+  }, [user, isAdmin, loading, router]);
 
   if (loading) {
     return (
@@ -28,8 +28,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  if (!user) return null;
-  if (profile && profile.role !== 'admin' && profile.role !== 'house_manager') return null;
+  if (!user || !isAdmin) return null;
 
   return <>{children}</>;
 }

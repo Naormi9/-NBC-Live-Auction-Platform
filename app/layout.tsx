@@ -3,8 +3,8 @@ import './globals.css';
 import { Providers } from './providers';
 
 export const metadata: Metadata = {
-  title: 'מרכז המכרזים הארצי',
-  description: 'מכירות פומביות מדי שבוע על רכבים מכל הקטגוריות. צפו, הציעו והשתתפו במכרזים חיים',
+  title: 'מכרזי מיכאלי מוטורס | Michaeli Motors Auction',
+  description: 'מכרזי רכבים חיים של מיכאלי מוטורס — הציעו מחיר, השתתפו בלייב וקנו רכב במחיר שאתם קובעים',
   manifest: '/manifest.json',
   icons: {
     icon: '/favicon.svg',

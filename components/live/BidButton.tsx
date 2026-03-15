@@ -15,9 +15,8 @@ interface BidButtonProps {
 }
 
 export default function BidButton({ auction, item, registered }: BidButtonProps) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [submitting, setSubmitting] = useState(false);
-  
 
   if (!user) {
     return (
@@ -31,6 +30,14 @@ export default function BidButton({ auction, item, registered }: BidButtonProps)
     return (
       <button disabled className="w-full py-4 rounded-xl bg-bg-elevated text-text-secondary font-semibold text-lg cursor-not-allowed">
         הירשם להשתתפות
+      </button>
+    );
+  }
+
+  if (profile?.verificationStatus !== 'approved') {
+    return (
+      <button disabled className="w-full py-4 rounded-xl bg-bg-elevated text-text-secondary font-semibold text-lg cursor-not-allowed">
+        החשבון ממתין לאישור
       </button>
     );
   }
