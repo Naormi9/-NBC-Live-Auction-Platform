@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { ref, onValue } from 'firebase/database';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { ref, get } from 'firebase/database';
 import { db, auth } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { isAllowedAdmin } from '@/lib/admin-allowlist';
@@ -43,6 +43,7 @@ export default function AdminRegistrationsPage() {
   const { user, loading: authLoading } = useAuth();
   const [users, setUsers] = useState<RegisteredUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterOption>('pending_approval');
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [updatingUid, setUpdatingUid] = useState<string | null>(null);
@@ -50,60 +51,74 @@ export default function AdminRegistrationsPage() {
   // Admin check — wait for auth to finish before deciding
   const isAdmin = !authLoading && user && isAllowedAdmin(user.email);
 
-  // Fetch all users in real-time from /users (NOT /registrations)
-  useEffect(() => {
-    if (!isAdmin) return;
-    const usersRef = ref(db, 'users');
-    const unsub = onValue(
-      usersRef,
-      (snap) => {
-        if (!snap.exists()) {
-          setUsers([]);
-          setLoading(false);
-          return;
-        }
-        const data = snap.val();
-        const list: RegisteredUser[] = Object.entries(data)
-          .map(([uid, val]: [string, any]) => ({
-            uid,
-            displayName: val.displayName || '',
-            email: val.email || '',
-            phone: val.phone || '',
-            idNumber: val.idNumber || '',
-            verificationStatus: val.verificationStatus || 'pending_verification',
-            callbackRequested: val.callbackRequested || false,
-            signatureData: val.signatureData || null,
-            createdAt: val.createdAt || 0,
-            termsAcceptedAt: val.termsAcceptedAt || null,
-          }))
-          // Exclude admin users from the list
-          .filter((u) => u.verificationStatus !== undefined && !isAllowedAdmin(u.email));
+  // One-shot fetch from /users using get() — NOT onValue, NOT /registrations
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const usersRef = ref(db, 'users');
+      console.log('[admin/registrations] Fetching from path: users');
+      const snap = await get(usersRef);
 
-        // Sort: pending_approval first, then pending_verification, then others
-        const statusOrder: Record<string, number> = {
-          pending_approval: 0,
-          pending_verification: 1,
-          rejected: 2,
-          approved: 3,
-        };
-        list.sort((a, b) => {
-          const orderDiff = (statusOrder[a.verificationStatus] ?? 9) - (statusOrder[b.verificationStatus] ?? 9);
-          if (orderDiff !== 0) return orderDiff;
-          return (b.createdAt || 0) - (a.createdAt || 0);
-        });
-
-        setUsers(list);
-        setLoading(false);
-      },
-      (error) => {
-        console.error('Failed to read /users:', error.message);
-        toast.error('שגיאה בטעינת נרשמים – בדוק הרשאות RTDB');
+      if (!snap.exists()) {
+        console.warn('[admin/registrations] /users snapshot is empty');
         setUsers([]);
         setLoading(false);
+        return;
       }
-    );
-    return () => unsub();
-  }, [isAdmin]);
+
+      const data = snap.val();
+      console.log('[admin/registrations] Got', Object.keys(data).length, 'user records from /users');
+
+      const list: RegisteredUser[] = Object.entries(data)
+        .map(([uid, val]: [string, any]) => ({
+          uid,
+          displayName: val.displayName || '',
+          email: val.email || '',
+          phone: val.phone || '',
+          idNumber: val.idNumber || '',
+          verificationStatus: val.verificationStatus || 'pending_verification',
+          callbackRequested: val.callbackRequested || false,
+          signatureData: val.signatureData || null,
+          createdAt: val.createdAt || 0,
+          termsAcceptedAt: val.termsAcceptedAt || null,
+        }))
+        // Exclude admin users from the list
+        .filter((u) => u.verificationStatus !== undefined && !isAllowedAdmin(u.email));
+
+      // Sort: pending_approval first, then pending_verification, then others
+      const statusOrder: Record<string, number> = {
+        pending_approval: 0,
+        pending_verification: 1,
+        rejected: 2,
+        approved: 3,
+      };
+      list.sort((a, b) => {
+        const orderDiff = (statusOrder[a.verificationStatus] ?? 9) - (statusOrder[b.verificationStatus] ?? 9);
+        if (orderDiff !== 0) return orderDiff;
+        return (b.createdAt || 0) - (a.createdAt || 0);
+      });
+
+      console.log('[admin/registrations] Displaying', list.length, 'users after filtering');
+      setUsers(list);
+    } catch (err: any) {
+      const msg = err?.message || 'Unknown error';
+      console.error('[admin/registrations] FAILED to read /users:', msg, err);
+      if (msg.includes('permission_denied') || msg.includes('PERMISSION_DENIED')) {
+        setError('אין הרשאת קריאה ל-/users ב-RTDB. ודא שלמשתמש יש role=admin בדאטאבייס ושה-rules עודכנו.');
+      } else {
+        setError(`שגיאה בטעינת נרשמים: ${msg}`);
+      }
+      setUsers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetchUsers();
+  }, [isAdmin, fetchUsers]);
 
   // Filter users
   const filteredUsers = useMemo(() => {
@@ -173,7 +188,16 @@ export default function AdminRegistrationsPage() {
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold">ניהול נרשמים</h1>
-          <span className="text-text-secondary text-sm">{users.length} נרשמים</span>
+          <div className="flex items-center gap-3">
+            <span className="text-text-secondary text-sm">{users.length} נרשמים</span>
+            <button
+              onClick={fetchUsers}
+              disabled={loading}
+              className="px-3 py-1.5 bg-bg-elevated hover:bg-white/10 text-text-secondary hover:text-white rounded-lg text-xs font-medium transition-smooth disabled:opacity-50"
+            >
+              {loading ? 'טוען...' : 'רענן'}
+            </button>
+          </div>
         </div>
 
         {/* Filter tabs */}
@@ -222,6 +246,16 @@ export default function AdminRegistrationsPage() {
         {loading ? (
           <div className="flex justify-center py-12">
             <LoadingSpinner size="lg" />
+          </div>
+        ) : error ? (
+          <div className="glass rounded-xl p-8 text-center space-y-4">
+            <p className="text-red-400 font-medium">{error}</p>
+            <button
+              onClick={fetchUsers}
+              className="px-4 py-2 bg-accent hover:bg-accent/80 text-white rounded-lg text-sm font-semibold transition-smooth"
+            >
+              נסה שוב
+            </button>
           </div>
         ) : filteredUsers.length === 0 ? (
           <div className="glass rounded-xl p-8 text-center text-text-secondary">
