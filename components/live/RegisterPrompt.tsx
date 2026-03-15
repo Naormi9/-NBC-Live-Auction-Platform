@@ -1,11 +1,7 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
-import { ref, set, serverTimestamp } from 'firebase/database';
-import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
-import toast from 'react-hot-toast';
 
 interface RegisterPromptProps {
   auctionId: string;
@@ -13,104 +9,71 @@ interface RegisterPromptProps {
 }
 
 export default function RegisterPrompt({ auctionId, isLoggedIn }: RegisterPromptProps) {
-  const { user, profile } = useAuth();
-  const [registering, setRegistering] = useState(false);
-  const [termsAccepted, setTermsAccepted] = useState(false);
+  const { profile } = useAuth();
 
-  // Already approved - no prompt needed
+  // Approved users are auto-registered by useRegistration hook — no prompt needed
   if (isLoggedIn && profile?.verificationStatus === 'approved') {
     return null;
   }
 
-  // Logged in, approved, can register directly for this auction
-  const handleRegisterForAuction = async () => {
-    if (!user) return;
-    if (!termsAccepted) {
-      toast.error('יש לאשר את תנאי ההשתתפות');
-      return;
-    }
-    setRegistering(true);
-    try {
-      await set(ref(db, `registrations/${auctionId}/${user.uid}`), {
-        userId: user.uid,
-        registeredAt: serverTimestamp(),
-        status: 'registered',
-        termsAcceptedAt: serverTimestamp(),
-      });
-      toast.success('נרשמת למכרז בהצלחה!');
-    } catch (err: any) {
-      toast.error('שגיאה בהרשמה למכרז');
-    } finally {
-      setRegistering(false);
-    }
-  };
-
-  // Logged in but not approved - show verification status
-  if (isLoggedIn && profile?.verificationStatus !== 'approved') {
-    const statusMessage = profile?.verificationStatus === 'pending_approval'
-      ? 'החשבון שלך ממתין לאישור. נציג יחזור אליך בהקדם.'
-      : profile?.verificationStatus === 'rejected'
-      ? 'החשבון שלך נדחה. פנה לתמיכה.'
-      : 'יש לאמת את החשבון כדי להשתתף במכרז';
-
+  // Logged in but pending approval — clear status message
+  if (isLoggedIn && profile?.verificationStatus === 'pending_approval') {
     return (
-      <div className="glass rounded-xl p-4 text-center space-y-2 border border-accent/30">
-        <p className="text-sm font-semibold">{statusMessage}</p>
-        {profile?.verificationStatus === 'pending_verification' && (
-          <Link
-            href="/verify"
-            className="btn-accent px-6 py-2 rounded-lg text-sm inline-block"
-          >
-            עבור לאימות חשבון
-          </Link>
-        )}
+      <div className="glass rounded-xl p-4 text-center space-y-2 border border-yellow-500/30">
+        <p className="text-sm font-semibold text-yellow-400">החשבון שלך ממתין לאישור</p>
+        <p className="text-xs text-text-secondary">נציג יאשר את חשבונך בקרוב. תוכל להציע ברגע שתאושר.</p>
+        <p className="text-[10px] text-text-secondary/50">העמוד יתעדכן אוטומטית — אין צורך לרענן</p>
       </div>
     );
   }
 
-  // Logged in + approved but not registered for this auction
-  if (isLoggedIn && profile?.verificationStatus === 'approved') {
+  // Logged in but pending verification — CTA to complete verification
+  if (isLoggedIn && profile?.verificationStatus === 'pending_verification') {
     return (
       <div className="glass rounded-xl p-4 text-center space-y-3 border border-accent/30">
-        <p className="text-sm font-semibold">הירשם למכרז זה כדי להשתתף</p>
-        <label className="flex items-center gap-2 text-xs justify-center cursor-pointer">
-          <input
-            type="checkbox"
-            checked={termsAccepted}
-            onChange={(e) => setTermsAccepted(e.target.checked)}
-            className="accent-accent w-4 h-4"
-          />
-          <span>אני מאשר/ת את תנאי ההשתתפות במכרז</span>
-        </label>
-        <button
-          onClick={handleRegisterForAuction}
-          disabled={!termsAccepted || registering}
-          className="btn-accent px-6 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
+        <p className="text-sm font-semibold">יש להשלים אימות חשבון כדי להשתתף</p>
+        <p className="text-xs text-text-secondary">השלם את האימות ונציג יאשר את חשבונך</p>
+        <Link
+          href="/verify"
+          className="btn-accent px-6 py-2 rounded-lg text-sm inline-block font-semibold"
         >
-          {registering ? 'נרשם...' : 'הירשם למכרז'}
-        </button>
+          השלם אימות
+        </Link>
       </div>
     );
   }
 
-  // Not logged in - direct to full registration page
+  // Logged in but rejected
+  if (isLoggedIn && profile?.verificationStatus === 'rejected') {
+    return (
+      <div className="glass rounded-xl p-4 text-center space-y-2 border border-red-500/30">
+        <p className="text-sm font-semibold text-red-400">החשבון שלך נדחה</p>
+        <p className="text-xs text-text-secondary">פנה לתמיכה לבירור: office@m-motors.co.il</p>
+      </div>
+    );
+  }
+
+  // Not logged in — direct to full registration page with redirect back to live
   return (
-    <div className="glass rounded-xl p-4 text-center space-y-2 border border-accent/30">
+    <div className="glass rounded-xl p-4 text-center space-y-3 border border-accent/30">
       <p className="text-sm font-semibold">
-        התחבר והירשם למכרז כדי להשתתף
+        הירשם כדי להשתתף במכרז
+      </p>
+      <p className="text-xs text-text-secondary">
+        הרשמה כוללת חתימה דיגיטלית ואישור תקנון — תהליך אחד מהיר
       </p>
       <div className="flex gap-3 justify-center">
         <Link
-          href="/login"
+          href="/login?redirect=/live"
           className="btn-dark px-6 py-2 rounded-lg text-sm"
         >
           התחברות
         </Link>
         <Link
-          href="/register"
-          className="btn-accent px-6 py-2 rounded-lg text-sm"
+          href="/register?redirect=/live"
+          className="btn-accent px-6 py-2 rounded-lg text-sm font-semibold"
         >
-          הרשמה
+          הרשמה חדשה
         </Link>
       </div>
     </div>

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { ref, update, serverTimestamp } from 'firebase/database';
 import { auth, db } from '@/lib/firebase';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { LogoIcon } from '@/components/ui/Logo';
@@ -21,6 +21,8 @@ export default function RegisterPage() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get('redirect');
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,8 +62,8 @@ export default function RegisterPage() {
         signatureData,
         callbackRequested: false,
       });
-      toast.success('נרשמת בהצלחה! כעת יש לאמת את החשבון');
-      router.push('/verify');
+      toast.success('נרשמת בהצלחה! כעת יש לאמת את החשבון', { id: 'register-success' });
+      router.push(redirect ? `/verify?redirect=${encodeURIComponent(redirect)}` : '/verify');
     } catch (err: any) {
       if (err.code === 'auth/email-already-in-use') {
         toast.error('האימייל כבר רשום במערכת');
@@ -162,7 +164,7 @@ export default function RegisterPage() {
               <Link href="/terms" target="_blank" className="text-accent hover:underline">
                 תקנון המכרז
               </Link>{' '}
-              ואת תנאי השימוש. אני מתחייב/ת לעמוד בתנאי ההשתתפות, לרבות תשלום במקרה של זכייה, ומאשר/ת כי חתימה זו מהווה הסכמה משפטית מחייבת.
+              ואת תנאי השימוש. אני מתחייב/ת לעמוד בתנאי ההשתתפות, לרבות תשלום מלא במקרה של זכייה. ידוע לי כי אי-תשלום יגרור חילוט ערבות, חסימה מהשתתפות עתידית, ונקיטת הליכים משפטיים. חתימה זו מהווה הסכמה משפטית מחייבת.
             </p>
 
             <div className="flex items-start gap-3">

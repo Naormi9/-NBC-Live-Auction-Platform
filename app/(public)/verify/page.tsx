@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ref, update, onValue } from 'firebase/database';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
@@ -13,6 +13,8 @@ import toast from 'react-hot-toast';
 export default function VerifyPage() {
   const { user, profile, loading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get('redirect');
   const [verificationStatus, setVerificationStatus] = useState<VerificationStatus | null>(null);
   const [callbackRequested, setCallbackRequested] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -37,10 +39,10 @@ export default function VerifyPage() {
 
   useEffect(() => {
     if (verificationStatus === 'approved') {
-      toast.success('החשבון אושר! כעת ניתן להשתתף במכרזים');
-      router.push('/auctions');
+      toast.success('החשבון אושר! כעת ניתן להשתתף במכרזים', { id: 'approved' });
+      router.push(redirect || '/auctions');
     }
-  }, [verificationStatus, router]);
+  }, [verificationStatus, router, redirect]);
 
   if (loading) {
     return (

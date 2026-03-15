@@ -117,6 +117,7 @@ export async function startAuctionLive(auctionId: string): Promise<string> {
     itemStartedAt: now,
     timerEndsAt: now + getTimerSeconds(settings, 'round1') * 1000,
     timerDuration: getTimerSeconds(settings, 'round1'),
+    timerPaused: false,
     settings,
   });
 
@@ -153,6 +154,7 @@ export async function activateNextItem(auctionId: string): Promise<string> {
     itemStartedAt: now,
     timerEndsAt: now + getTimerSeconds(settings, 'round1') * 1000,
     timerDuration: getTimerSeconds(settings, 'round1'),
+    timerPaused: false,
   });
 
   await chatMsg(auctionId, `הפריט "${nextItem.title}" עלה לבמה!`);
@@ -178,6 +180,7 @@ export async function advanceRound(auctionId: string): Promise<string> {
     currentRound: nextRound,
     timerEndsAt: now + timerSec * 1000,
     timerDuration: timerSec,
+    timerPaused: false,
   });
 
   await chatMsg(auctionId, `עוברים לסיבוב ${nextRound} — מדרגת קפיצה: ₪${settings[roundKey].increment.toLocaleString()}`);
@@ -243,6 +246,7 @@ export async function closeItemAndAdvance(auctionId: string, markAsSold: boolean
     itemStartedAt: now,
     timerEndsAt: now + timerSec * 1000,
     timerDuration: timerSec,
+    timerPaused: false,
   });
 
   await chatMsg(auctionId, `הפריט "${nextItem.title}" עלה לבמה!`);
@@ -399,6 +403,7 @@ export async function handleTimerExpiry(auctionId: string): Promise<string> {
       await update(ref(db, `auctions/${auctionId}`), {
         round1Resets: round1Resets + 1,
         timerEndsAt: now + timerSec * 1000,
+        timerPaused: false,
       });
       await chatMsg(auctionId, `סיבוב 1 — ניסיון ${round1Resets + 1}/2, אין הצעות`);
       return 'טיימר אופס מחדש';

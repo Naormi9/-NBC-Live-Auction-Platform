@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { LogoIcon } from '@/components/ui/Logo';
@@ -14,6 +14,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get('redirect');
 
   const handleReset = async () => {
     if (!email) {
@@ -42,8 +44,8 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      toast.success('התחברת בהצלחה!');
-      router.push('/');
+      toast.success('התחברת בהצלחה!', { id: 'login-success' });
+      router.push(redirect || '/');
     } catch (err: any) {
       toast.error('שגיאה בהתחברות. בדוק את הפרטים.');
     } finally {
