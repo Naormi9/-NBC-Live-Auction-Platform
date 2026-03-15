@@ -52,6 +52,10 @@ export default function AuctionCatalogPage() {
       toast.error('התחבר קודם כדי להירשם');
       return;
     }
+    if (profile?.verificationStatus !== 'approved') {
+      toast.error('יש לאמת את החשבון לפני הרשמה למכרז');
+      return;
+    }
     if (!termsAccepted) {
       toast.error('יש לאשר את תנאי ההשתתפות');
       return;
@@ -59,10 +63,10 @@ export default function AuctionCatalogPage() {
     await set(ref(db, `registrations/${auctionId}/${user.uid}`), {
       userId: user.uid,
       registeredAt: serverTimestamp(),
-      status: 'approved',
+      status: 'pending',
       termsAcceptedAt: serverTimestamp(),
     });
-    toast.success('נרשמת למכרז בהצלחה!');
+    toast.success('נרשמת למכרז! ממתין לאישור אדמין');
   };
 
   const handlePreBid = async (itemId: string, item: any) => {
