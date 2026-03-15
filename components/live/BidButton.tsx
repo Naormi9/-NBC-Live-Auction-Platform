@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { formatPrice, getMinBid, canPlaceBid } from '@/lib/auction-utils';
 import { submitBid } from '@/lib/auction-actions';
@@ -20,6 +20,11 @@ export default function BidButton({ auction, item, registered }: BidButtonProps)
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
   const lastBidRef = useRef<string | null>(null);
+
+  // Clear dedup ref when item or round changes so user can bid on new context
+  useEffect(() => {
+    lastBidRef.current = null;
+  }, [item.id, auction.currentRound]);
 
   if (!user) {
     return (

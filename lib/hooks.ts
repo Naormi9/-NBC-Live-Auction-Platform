@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { ref, onValue, query, limitToLast, orderByChild, equalTo, get } from 'firebase/database';
 import { db } from './firebase';
 import { Auction, AuctionItem, BidHistoryEntry, ChatMessage } from './types';
@@ -227,6 +227,8 @@ export function useAllAuctions() {
 export function useAutoAdvance(auctionId: string | null, isAdmin: boolean) {
   const { auction } = useAuction(auctionId);
   const [processing, setProcessing] = useState(false);
+  // Track last timerEndsAt we processed to avoid re-firing for the same expiry
+  const lastProcessedRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!auctionId || !auction || !isAdmin || processing) return;
@@ -234,28 +236,31 @@ export function useAutoAdvance(auctionId: string | null, isAdmin: boolean) {
     if (auction.timerPaused) return;
     if (!auction.timerEndsAt) return;
 
+    // Skip if we already processed this exact timerEndsAt value
+    if (lastProcessedRef.current === auction.timerEndsAt) return;
+
     const remaining = auction.timerEndsAt - Date.now();
 
     const fireExpiry = () => {
+      // Double-check: if timerEndsAt changed since we scheduled, skip
+      // (means a bid came in or CF already advanced)
+      lastProcessedRef.current = auction.timerEndsAt;
       setProcessing(true);
       import('./auction-actions').then(({ handleTimerExpiry }) => {
         handleTimerExpiry(auctionId).finally(() => {
-          // Debounce to avoid firing again too quickly
           setTimeout(() => {
             setProcessing(false);
-          }, 2000);
+          }, 3000);
         });
       });
     };
 
     if (remaining <= 0) {
-      // Already expired — fire immediately
       fireExpiry();
       return;
     }
 
-    // Schedule auto-advance for when timer expires
-    const timeout = setTimeout(fireExpiry, remaining + 300); // +300ms buffer
+    const timeout = setTimeout(fireExpiry, remaining + 500); // +500ms buffer to let CF act first
     return () => clearTimeout(timeout);
   }, [auctionId, auction?.timerEndsAt, auction?.status, auction?.timerPaused, isAdmin, processing]);
 }

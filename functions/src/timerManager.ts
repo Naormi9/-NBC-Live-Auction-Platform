@@ -79,6 +79,7 @@ export const timerTick = functions.region('europe-west1').pubsub
           await db.ref(`/auctions/${auctionId}`).update({
             round1Resets: round1Resets + 1,
             timerEndsAt: now + getTimerSeconds(settings, 'round1') * 1000,
+            timerPaused: false,
           });
           await db.ref(`/live_chat/${auctionId}`).push({
             senderId: 'system',
@@ -113,6 +114,7 @@ async function advanceRound(auctionId: string, nextRound: 2 | 3, settings: any) 
     currentRound: nextRound,
     timerEndsAt: now + timerSeconds * 1000,
     timerDuration: timerSeconds,
+    timerPaused: false,
   });
 
   await db.ref(`/live_chat/${auctionId}`).push({
@@ -219,6 +221,7 @@ async function closeItemAndAdvance(auctionId: string, auction: any, settings: an
       itemStartedAt: now,
       timerEndsAt: now + timerSec * 1000,
       timerDuration: timerSec,
+      timerPaused: false,
     });
     await db.ref(`/live_chat/${auctionId}`).push({
       senderId: 'system',

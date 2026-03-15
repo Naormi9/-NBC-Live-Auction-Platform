@@ -421,15 +421,15 @@ export default function AuctioneerConsole() {
                         if (!auctionId) return;
                         const sec = parseInt(overrideSeconds);
                         if (isNaN(sec) || sec <= 0) {
-                          toast.error('הזן מספר שניות תקין');
+                          toast.error('הזן מספר שניות תקין', { id: 'override-err' });
                           return;
                         }
                         try {
                           const msg = await setTimerOverride(auctionId, sec);
-                          toast.success(msg);
+                          toast.success(msg, { id: 'override-set' });
                           setOverrideSeconds('');
                         } catch (err: any) {
-                          toast.error(err.message || 'שגיאה');
+                          toast.error(err.message || 'שגיאה', { id: 'override-err' });
                         }
                       }}
                       className="btn-accent py-2 px-4 rounded-lg text-xs font-bold"
@@ -442,9 +442,9 @@ export default function AuctioneerConsole() {
                           if (!auctionId) return;
                           try {
                             const msg = await setTimerOverride(auctionId, null);
-                            toast.success(msg);
+                            toast.success(msg, { id: 'override-clear' });
                           } catch (err: any) {
-                            toast.error(err.message || 'שגיאה');
+                            toast.error(err.message || 'שגיאה', { id: 'override-err' });
                           }
                         }}
                         className="btn-dark py-2 px-3 rounded-lg text-xs"
@@ -504,14 +504,14 @@ export default function AuctioneerConsole() {
                     const inc = parseInt(editIncrement);
                     const timer = parseInt(editTimer);
                     if (isNaN(inc) || isNaN(timer) || inc <= 0 || timer <= 0) {
-                      toast.error('ערכים לא תקינים');
+                      toast.error('ערכים לא תקינים', { id: 'settings-err' });
                       return;
                     }
                     try {
                       const msg = await updateLiveSettings(auctionId, editRound, inc, timer);
-                      toast.success(msg);
+                      toast.success(msg, { id: 'settings-saved' });
                     } catch (err: any) {
-                      toast.error(err.message || 'שגיאה');
+                      toast.error(err.message || 'שגיאה', { id: 'settings-err' });
                     }
                   }}
                   className="w-full btn-accent py-2 rounded-lg text-sm font-bold"
@@ -558,24 +558,48 @@ export default function AuctioneerConsole() {
         </div>
       </div>
 
-      {/* Upcoming items */}
+      {/* Full Catalog Progress */}
       <div className="glass rounded-xl p-4">
-        <h2 className="text-sm font-semibold text-text-secondary mb-3">פריטים הבאים</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-          {items
-            .filter((i) => i.status === 'pending')
-            .slice(0, 6)
-            .map((upItem) => (
-              <div key={upItem.id} className="bg-bg-elevated rounded-lg p-3 flex items-center gap-3">
-                <span className="w-8 h-8 rounded-full bg-bg-surface flex items-center justify-center text-sm font-bold">
-                  {upItem.order}
+        <h2 className="text-sm font-semibold text-text-secondary mb-3">
+          קטלוג ({items.filter(i => i.status === 'sold').length} נמכרו / {items.filter(i => i.status === 'pending').length} בתור / {items.length} סה&quot;כ)
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-2">
+          {items.map((catItem) => {
+            const isActive = catItem.id === auction.currentItemId;
+            const isSold = catItem.status === 'sold';
+            const isUnsold = catItem.status === 'unsold';
+            return (
+              <div key={catItem.id} className={`rounded-lg p-3 flex items-center gap-3 ${
+                isActive ? 'bg-accent/20 border border-accent/30' :
+                isSold ? 'bg-bid-price/10 border border-bid-price/20' :
+                isUnsold ? 'bg-timer-orange/10 border border-timer-orange/20 opacity-60' :
+                'bg-bg-elevated'
+              }`}>
+                <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                  isActive ? 'bg-accent text-white' :
+                  isSold ? 'bg-bid-price text-white' :
+                  isUnsold ? 'bg-timer-orange text-white' :
+                  'bg-bg-surface'
+                }`}>
+                  {catItem.order}
                 </span>
-                <div>
-                  <div className="text-sm font-medium">{upItem.title}</div>
-                  <div className="text-xs text-text-secondary">{formatPrice(upItem.openingPrice)}</div>
+                <div className="min-w-0">
+                  <div className="text-sm font-medium truncate">{catItem.title}</div>
+                  <div className="text-xs text-text-secondary">
+                    {isActive ? (
+                      <span className="text-accent font-bold">{formatPrice(catItem.currentBid)} — חי</span>
+                    ) : isSold ? (
+                      <span className="text-bid-price">נמכר {formatPrice(catItem.soldPrice || catItem.currentBid)}</span>
+                    ) : isUnsold ? (
+                      <span className="text-timer-orange">לא נמכר</span>
+                    ) : (
+                      <>{formatPrice(catItem.openingPrice)}{catItem.preBidPrice ? ` (הצעה: ${formatPrice(catItem.preBidPrice)})` : ''}</>
+                    )}
+                  </div>
                 </div>
               </div>
-            ))}
+            );
+          })}
         </div>
       </div>
 
