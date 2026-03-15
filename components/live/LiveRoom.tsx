@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useCurrentItem, useBidHistory, useLiveChat, useCatalog, useViewerCount, useTimer, useRegistration, useLiveAuction, useAuction } from '@/lib/hooks';
 import { trackViewer } from '@/lib/presence';
 import { playOutbidSound, playTimerWarningSound, playTimer10SecSound, playTimerEndSound, playItemSoldSound } from '@/lib/sounds';
+import Link from 'next/link';
 import AuctionTimer from './AuctionTimer';
 import BidButton from './BidButton';
 import CurrentItem from './CurrentItem';
@@ -128,9 +129,26 @@ export default function LiveRoom() {
             <LiveBadge />
             <span className="text-sm text-text-secondary hidden md:inline">{auction.title}</span>
           </div>
-          <div className="flex items-center gap-2 text-text-secondary text-sm">
-            <span>👁</span>
-            <span>{viewerCount} צופים</span>
+          <div className="flex items-center gap-3 text-text-secondary text-sm">
+            <span>👁 {viewerCount} צופים</span>
+            {auctionId && (
+              <>
+                <Link
+                  href={`/auctions/${auctionId}`}
+                  className="hidden md:inline px-2 py-1 text-xs bg-bg-elevated hover:bg-white/10 rounded-lg transition-smooth"
+                >
+                  חזרה לקטלוג
+                </Link>
+                <a
+                  href={`/auctions/${auctionId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hidden md:inline px-2 py-1 text-xs bg-bg-elevated hover:bg-white/10 rounded-lg transition-smooth"
+                >
+                  קטלוג בטאב חדש ↗
+                </a>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -183,6 +201,26 @@ export default function LiveRoom() {
             {!registered && (
               <div className="px-4">
                 <RegisterPrompt auctionId={auction.id} isLoggedIn={!!user} />
+              </div>
+            )}
+
+            {/* Catalog navigation - mobile */}
+            {auctionId && (
+              <div className="px-4 flex gap-2">
+                <Link
+                  href={`/auctions/${auctionId}`}
+                  className="text-xs px-3 py-1.5 bg-bg-elevated hover:bg-white/10 rounded-lg transition-smooth text-text-secondary"
+                >
+                  חזרה לקטלוג
+                </Link>
+                <a
+                  href={`/auctions/${auctionId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs px-3 py-1.5 bg-bg-elevated hover:bg-white/10 rounded-lg transition-smooth text-text-secondary"
+                >
+                  קטלוג בטאב חדש ↗
+                </a>
               </div>
             )}
 
