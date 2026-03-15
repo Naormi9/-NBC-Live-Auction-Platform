@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { ref, get } from 'firebase/database';
+import { ref, get, onValue } from 'firebase/database';
 import { db, auth } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { isAllowedAdmin } from '@/lib/admin-allowlist';
@@ -51,25 +51,21 @@ export default function AdminRegistrationsPage() {
   // Admin check — wait for auth to finish before deciding
   const isAdmin = !authLoading && user && isAllowedAdmin(user.email);
 
-  // One-shot fetch from /users using get() — NOT onValue, NOT /registrations
-  const fetchUsers = useCallback(async () => {
+  // Real-time listener on /users — updates instantly when admin approves/rejects
+  useEffect(() => {
+    if (!isAdmin) return;
     setLoading(true);
     setError(null);
-    try {
-      const usersRef = ref(db, 'users');
-      console.log('[admin/registrations] Fetching from path: users');
-      const snap = await get(usersRef);
 
+    const usersRef = ref(db, 'users');
+    const unsub = onValue(usersRef, (snap) => {
       if (!snap.exists()) {
-        console.warn('[admin/registrations] /users snapshot is empty');
         setUsers([]);
         setLoading(false);
         return;
       }
 
       const data = snap.val();
-      console.log('[admin/registrations] Got', Object.keys(data).length, 'user records from /users');
-
       const list: RegisteredUser[] = Object.entries(data)
         .map(([uid, val]: [string, any]) => ({
           uid,
@@ -83,10 +79,8 @@ export default function AdminRegistrationsPage() {
           createdAt: val.createdAt || 0,
           termsAcceptedAt: val.termsAcceptedAt || null,
         }))
-        // Exclude admin users from the list
         .filter((u) => u.verificationStatus !== undefined && !isAllowedAdmin(u.email));
 
-      // Sort: pending_approval first, then pending_verification, then others
       const statusOrder: Record<string, number> = {
         pending_approval: 0,
         pending_verification: 1,
@@ -99,9 +93,9 @@ export default function AdminRegistrationsPage() {
         return (b.createdAt || 0) - (a.createdAt || 0);
       });
 
-      console.log('[admin/registrations] Displaying', list.length, 'users after filtering');
       setUsers(list);
-    } catch (err: any) {
+      setLoading(false);
+    }, (err: any) => {
       const msg = err?.message || 'Unknown error';
       console.error('[admin/registrations] FAILED to read /users:', msg, err);
       if (msg.includes('permission_denied') || msg.includes('PERMISSION_DENIED')) {
@@ -110,15 +104,11 @@ export default function AdminRegistrationsPage() {
         setError(`שגיאה בטעינת נרשמים: ${msg}`);
       }
       setUsers([]);
-    } finally {
       setLoading(false);
-    }
-  }, []);
+    });
 
-  useEffect(() => {
-    if (!isAdmin) return;
-    fetchUsers();
-  }, [isAdmin, fetchUsers]);
+    return () => unsub();
+  }, [isAdmin]);
 
   // Filter users
   const filteredUsers = useMemo(() => {
@@ -136,6 +126,35 @@ export default function AdminRegistrationsPage() {
     });
     return c;
   }, [users]);
+
+  // Batch approve all pending users
+  const [batchApproving, setBatchApproving] = useState(false);
+  const pendingUsers = useMemo(() =>
+    users.filter((u) => u.verificationStatus === 'pending_approval' || u.verificationStatus === 'pending_verification'),
+    [users]
+  );
+
+  const handleApproveAll = async () => {
+    if (!auth.currentUser || pendingUsers.length === 0) return;
+    setBatchApproving(true);
+    try {
+      const token = await auth.currentUser.getIdToken();
+      let approved = 0;
+      for (const u of pendingUsers) {
+        const res = await fetch('/api/admin/update-verification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ targetUid: u.uid, newStatus: 'approved' }),
+        });
+        if (res.ok) approved++;
+      }
+      toast.success(`אושרו ${approved} משתתפים`);
+    } catch (err: any) {
+      toast.error('שגיאה באישור גורף');
+    } finally {
+      setBatchApproving(false);
+    }
+  };
 
   // Update user verification status via secured API route
   const handleUpdateStatus = async (uid: string, newStatus: VerificationStatus) => {
@@ -190,15 +209,25 @@ export default function AdminRegistrationsPage() {
           <h1 className="text-3xl font-bold">ניהול נרשמים</h1>
           <div className="flex items-center gap-3">
             <span className="text-text-secondary text-sm">{users.length} נרשמים</span>
-            <button
-              onClick={fetchUsers}
-              disabled={loading}
-              className="px-3 py-1.5 bg-bg-elevated hover:bg-white/10 text-text-secondary hover:text-white rounded-lg text-xs font-medium transition-smooth disabled:opacity-50"
-            >
-              {loading ? 'טוען...' : 'רענן'}
-            </button>
+            <span className="text-xs text-green-400/60">עדכון חי</span>
           </div>
         </div>
+
+        {/* Batch actions */}
+        {pendingUsers.length > 0 && (
+          <div className="glass rounded-xl p-3 mb-4 flex items-center justify-between">
+            <span className="text-sm text-text-secondary">
+              {pendingUsers.length} משתתפים ממתינים לאישור
+            </span>
+            <button
+              onClick={handleApproveAll}
+              disabled={batchApproving}
+              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold transition-smooth disabled:opacity-50"
+            >
+              {batchApproving ? 'מאשר...' : `אשר את כולם (${pendingUsers.length})`}
+            </button>
+          </div>
+        )}
 
         {/* Filter tabs */}
         <div className="flex flex-wrap gap-2 mb-6">
@@ -250,12 +279,7 @@ export default function AdminRegistrationsPage() {
         ) : error ? (
           <div className="glass rounded-xl p-8 text-center space-y-4">
             <p className="text-red-400 font-medium">{error}</p>
-            <button
-              onClick={fetchUsers}
-              className="px-4 py-2 bg-accent hover:bg-accent/80 text-white rounded-lg text-sm font-semibold transition-smooth"
-            >
-              נסה שוב
-            </button>
+            <p className="text-text-secondary text-sm">רענן את הדף כדי לנסות שוב</p>
           </div>
         ) : filteredUsers.length === 0 ? (
           <div className="glass rounded-xl p-8 text-center text-text-secondary">
@@ -287,6 +311,25 @@ export default function AdminRegistrationsPage() {
                       <span className={`text-xs px-3 py-1 rounded-full font-medium ${STATUS_COLORS[u.verificationStatus]}`}>
                         {STATUS_LABELS[u.verificationStatus]}
                       </span>
+                      {/* Quick action buttons on summary row */}
+                      {u.verificationStatus !== 'approved' && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleUpdateStatus(u.uid, 'approved'); }}
+                          disabled={isUpdating}
+                          className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded-lg font-medium transition-smooth disabled:opacity-50"
+                        >
+                          אשר
+                        </button>
+                      )}
+                      {u.verificationStatus !== 'rejected' && u.verificationStatus !== 'approved' && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleUpdateStatus(u.uid, 'rejected'); }}
+                          disabled={isUpdating}
+                          className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded-lg font-medium transition-smooth disabled:opacity-50"
+                        >
+                          דחה
+                        </button>
+                      )}
                       <span className="text-text-secondary text-sm">{isExpanded ? '▲' : '▼'}</span>
                     </div>
                   </button>
