@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { formatPrice, getMinBid, canPlaceBid } from '@/lib/auction-utils';
 import { submitBid } from '@/lib/auction-actions';
@@ -17,6 +17,10 @@ interface BidButtonProps {
 export default function BidButton({ auction, item, registered }: BidButtonProps) {
   const { user, profile } = useAuth();
   const [submitting, setSubmitting] = useState(false);
+  // Ref-based guard prevents double-clicks even before React re-renders
+  const submittingRef = useRef(false);
+  // Track last submitted bid to suppress duplicate toasts
+  const lastBidRef = useRef<string | null>(null);
 
   if (!user) {
     return (
@@ -60,8 +64,9 @@ export default function BidButton({ auction, item, registered }: BidButtonProps)
 
   const nextBid = getMinBid(item.currentBid, auction.settings, auction.currentRound);
 
-  const handleBid = async () => {
-    if (submitting) return;
+  const handleBid = useCallback(async () => {
+    // Double-click guard via ref (synchronous, before any async)
+    if (submittingRef.current) return;
 
     const validation = canPlaceBid(user.uid, item, auction, nextBid);
     if (!validation.valid) {
@@ -69,6 +74,12 @@ export default function BidButton({ auction, item, registered }: BidButtonProps)
       return;
     }
 
+    // Dedup: prevent same bid from showing multiple toasts
+    const bidKey = `${item.id}-${nextBid}-${auction.currentRound}`;
+    if (lastBidRef.current === bidKey) return;
+
+    submittingRef.current = true;
+    lastBidRef.current = bidKey;
     setSubmitting(true);
     try {
       await submitBid(
@@ -82,11 +93,15 @@ export default function BidButton({ auction, item, registered }: BidButtonProps)
       playBidSound();
       toast.success(`הצעה של ${formatPrice(nextBid)} נשלחה!`);
     } catch (err: any) {
+      // Allow retry on error
+      lastBidRef.current = null;
       toast.error(err.message || 'שגיאה בשליחת ההצעה');
     } finally {
       setSubmitting(false);
+      // Allow new bid after a short cooldown (prevents rapid re-clicks)
+      setTimeout(() => { submittingRef.current = false; }, 1500);
     }
-  };
+  }, [user, item, auction, nextBid]);
 
   return (
     <button

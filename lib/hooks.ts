@@ -260,19 +260,37 @@ export function useAutoAdvance(auctionId: string | null, isAdmin: boolean) {
   }, [auctionId, auction?.timerEndsAt, auction?.status, auction?.timerPaused, isAdmin, processing]);
 }
 
-export function useRegistration(auctionId: string | null, userId: string | null) {
+export function useRegistration(auctionId: string | null, userId: string | null, autoRegister?: boolean, verificationStatus?: string) {
   const [registered, setRegistered] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!auctionId || !userId) { setRegistered(false); setLoading(false); return; }
     const regRef = ref(db, `registrations/${auctionId}/${userId}`);
-    const unsub = onValue(regRef, (snap) => {
-      setRegistered(snap.exists());
+    const unsub = onValue(regRef, async (snap) => {
+      if (snap.exists()) {
+        setRegistered(true);
+      } else if (autoRegister && verificationStatus === 'approved') {
+        // Auto-register approved users for the auction
+        try {
+          const { set, serverTimestamp } = await import('firebase/database');
+          await set(regRef, {
+            userId,
+            registeredAt: serverTimestamp(),
+            status: 'auto',
+            termsAcceptedAt: serverTimestamp(),
+          });
+          // onValue will fire again with snap.exists() === true
+        } catch {
+          setRegistered(false);
+        }
+      } else {
+        setRegistered(false);
+      }
       setLoading(false);
     });
     return () => unsub();
-  }, [auctionId, userId]);
+  }, [auctionId, userId, autoRegister, verificationStatus]);
 
   return { registered, loading };
 }

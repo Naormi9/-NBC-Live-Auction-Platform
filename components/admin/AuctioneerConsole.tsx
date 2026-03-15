@@ -1,16 +1,18 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { ref, push, update, serverTimestamp } from 'firebase/database';
-import { db } from '@/lib/firebase';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { ref, push, update, serverTimestamp, onValue } from 'firebase/database';
+import { db, auth as firebaseAuth } from '@/lib/firebase';
 import * as actions from '@/lib/auction-actions';
 import { updateLiveSettings, setTimerOverride } from '@/lib/auction-actions';
 import { useAuth } from '@/lib/auth-context';
+import { isAllowedAdmin } from '@/lib/admin-allowlist';
 import { useCurrentItem, useLiveAuction, useAuction, useCatalog, useViewerCount, useTimer, useBidHistory, useLiveChat, useAutoAdvance } from '@/lib/hooks';
 import { formatPrice, formatTimer, getTimerColor } from '@/lib/auction-utils';
 import LiveBadge from '../ui/LiveBadge';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import toast from 'react-hot-toast';
+import type { VerificationStatus } from '@/lib/types';
 
 export default function AuctioneerConsole() {
   const { user, profile } = useAuth();
@@ -30,6 +32,12 @@ export default function AuctioneerConsole() {
   const [editTimer, setEditTimer] = useState('');
   const [overrideSeconds, setOverrideSeconds] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const [showParticipants, setShowParticipants] = useState(false);
+  const [participants, setParticipants] = useState<any[]>([]);
+  const [participantCount, setParticipantCount] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
+  const prevPendingCountRef = useRef(0);
+  const [updatingUid, setUpdatingUid] = useState<string | null>(null);
 
   // Auto-advance between rounds when timer expires
   useAutoAdvance(auctionId, true);
@@ -39,6 +47,73 @@ export default function AuctioneerConsole() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
+
+  // Real-time participants listener for admin
+  useEffect(() => {
+    const usersRef = ref(db, 'users');
+    const unsub = onValue(usersRef, (snap) => {
+      if (!snap.exists()) { setParticipants([]); setParticipantCount(0); setPendingCount(0); return; }
+      const data = snap.val();
+      const list = Object.entries(data)
+        .map(([uid, val]: [string, any]) => ({ uid, ...val }))
+        .filter((u: any) => !isAllowedAdmin(u.email))
+        .sort((a: any, b: any) => {
+          const order: Record<string, number> = { pending_approval: 0, pending_verification: 1, rejected: 2, approved: 3 };
+          return (order[a.verificationStatus] ?? 9) - (order[b.verificationStatus] ?? 9);
+        });
+      setParticipants(list);
+      setParticipantCount(list.length);
+      const newPending = list.filter((u: any) => u.verificationStatus === 'pending_approval' || u.verificationStatus === 'pending_verification').length;
+      // Notify when new pending users arrive
+      if (newPending > prevPendingCountRef.current && prevPendingCountRef.current >= 0) {
+        const diff = newPending - prevPendingCountRef.current;
+        if (prevPendingCountRef.current > 0) {
+          toast(`${diff} נרשמים חדשים ממתינים לאישור`, { icon: '🔔' });
+        }
+      }
+      prevPendingCountRef.current = newPending;
+      setPendingCount(newPending);
+    });
+    return () => unsub();
+  }, []);
+
+  const handleApproveUser = async (uid: string) => {
+    if (!firebaseAuth.currentUser) return;
+    setUpdatingUid(uid);
+    try {
+      const token = await firebaseAuth.currentUser.getIdToken();
+      const res = await fetch('/api/admin/update-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ targetUid: uid, newStatus: 'approved' }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      toast.success('אושר');
+    } catch {
+      toast.error('שגיאה באישור');
+    } finally {
+      setUpdatingUid(null);
+    }
+  };
+
+  const handleRejectUser = async (uid: string) => {
+    if (!firebaseAuth.currentUser) return;
+    setUpdatingUid(uid);
+    try {
+      const token = await firebaseAuth.currentUser.getIdToken();
+      const res = await fetch('/api/admin/update-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ targetUid: uid, newStatus: 'rejected' }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      toast.success('נדחה');
+    } catch {
+      toast.error('שגיאה');
+    } finally {
+      setUpdatingUid(null);
+    }
+  };
 
   if (liveLoading) return <LoadingSpinner size="lg" />;
 
@@ -505,6 +580,77 @@ export default function AuctioneerConsole() {
             ))}
         </div>
       </div>
+
+      {/* Floating Participants Button */}
+      <button
+        onClick={() => setShowParticipants(!showParticipants)}
+        className="fixed bottom-6 left-6 z-50 w-14 h-14 rounded-full bg-accent hover:bg-accent/80 text-white shadow-lg flex items-center justify-center transition-smooth"
+      >
+        <span className="text-xl">👥</span>
+        {pendingCount > 0 && (
+          <span className="absolute -top-1 -right-1 bg-timer-red text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold animate-pulse">
+            {pendingCount}
+          </span>
+        )}
+      </button>
+
+      {/* Floating Participants Drawer */}
+      {showParticipants && (
+        <div className="fixed inset-y-0 left-0 z-50 w-80 bg-bg-primary/95 backdrop-blur-xl border-r border-border shadow-2xl flex flex-col">
+          <div className="p-4 border-b border-border flex items-center justify-between">
+            <h2 className="font-bold text-sm">משתתפים ({participantCount})</h2>
+            <button onClick={() => setShowParticipants(false)} className="text-text-secondary hover:text-white text-lg">✕</button>
+          </div>
+          {pendingCount > 0 && (
+            <div className="px-4 py-2 bg-orange-500/10 border-b border-border text-xs text-orange-400 font-medium">
+              {pendingCount} ממתינים לאישור
+            </div>
+          )}
+          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            {participants.map((p) => {
+              const isPending = p.verificationStatus === 'pending_approval' || p.verificationStatus === 'pending_verification';
+              const isApproved = p.verificationStatus === 'approved';
+              const isRejected = p.verificationStatus === 'rejected';
+              const isUpdating = updatingUid === p.uid;
+              return (
+                <div key={p.uid} className={`rounded-lg p-2 text-xs ${isPending ? 'bg-orange-500/10 border border-orange-500/20' : 'bg-bg-elevated/50'}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold truncate">{p.displayName || 'ללא שם'}</div>
+                      <div className="text-text-secondary truncate">{p.phone || p.email}</div>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {isApproved && <span className="text-green-400 text-[10px] font-bold">✓</span>}
+                      {isRejected && <span className="text-red-400 text-[10px] font-bold">✗</span>}
+                      {!isApproved && (
+                        <button
+                          onClick={() => handleApproveUser(p.uid)}
+                          disabled={isUpdating}
+                          className="px-2 py-0.5 bg-green-600 hover:bg-green-700 text-white rounded text-[10px] font-bold disabled:opacity-50"
+                        >
+                          {isUpdating ? '...' : 'אשר'}
+                        </button>
+                      )}
+                      {isPending && (
+                        <button
+                          onClick={() => handleRejectUser(p.uid)}
+                          disabled={isUpdating}
+                          className="px-2 py-0.5 bg-red-600 hover:bg-red-700 text-white rounded text-[10px] font-bold disabled:opacity-50"
+                        >
+                          דחה
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {p.callbackRequested && (
+                    <div className="mt-1 text-blue-400 text-[10px]">📞 ביקש חזרה טלפונית</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
