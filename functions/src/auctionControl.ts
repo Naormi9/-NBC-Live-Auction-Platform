@@ -201,6 +201,8 @@ export const startAuctionLive = functions.region('europe-west1').https.onRequest
 
     const firstItem = items[0] as any;
     const now = Date.now();
+    const scheduledAt = auction.scheduledAt || 0;
+    const isBeforeScheduled = scheduledAt > now + 10000; // more than 10s before scheduled time
 
     // Credit pre-bidder if exists
     const preBidder = await findHighestPreBidder(auctionId, firstItem.id);
@@ -213,23 +215,49 @@ export const startAuctionLive = functions.region('europe-west1').https.onRequest
     });
 
     const timerSec = getTimerSeconds(settings, 'round1');
-    await auctionRef.update({
-      status: 'live',
-      currentItemId: firstItem.id,
-      currentRound: 1,
-      round1Resets: 0,
-      itemStartedAt: now,
-      timerEndsAt: now + timerSec * 1000,
-      timerDuration: timerSec,
-      timerPaused: false,
-      settings,
-    });
 
-    await db.ref(`/live_chat/${auctionId}`).push({
-      senderId: 'system', senderName: 'מערכת', senderRole: 'system',
-      message: `המכרז התחיל! הפריט הראשון: "${firstItem.title}"`,
-      timestamp: SERVER_TIMESTAMP,
-    });
+    if (isBeforeScheduled) {
+      // Start in countdown mode — timer paused until scheduled time
+      await auctionRef.update({
+        status: 'live',
+        currentItemId: firstItem.id,
+        currentRound: 1,
+        round1Resets: 0,
+        itemStartedAt: null,
+        timerEndsAt: 0,
+        timerDuration: timerSec,
+        timerPaused: true,
+        remainingOnPause: timerSec,
+        waitingForScheduledStart: true,
+        settings,
+      });
+
+      await db.ref(`/live_chat/${auctionId}`).push({
+        senderId: 'system', senderName: 'מערכת', senderRole: 'system',
+        message: `המכרז נפתח! ספירה לאחור למועד ההתחלה...`,
+        timestamp: SERVER_TIMESTAMP,
+      });
+    } else {
+      // Scheduled time has passed or is very close — start immediately
+      await auctionRef.update({
+        status: 'live',
+        currentItemId: firstItem.id,
+        currentRound: 1,
+        round1Resets: 0,
+        itemStartedAt: now,
+        timerEndsAt: now + timerSec * 1000,
+        timerDuration: timerSec,
+        timerPaused: false,
+        waitingForScheduledStart: false,
+        settings,
+      });
+
+      await db.ref(`/live_chat/${auctionId}`).push({
+        senderId: 'system', senderName: 'מערכת', senderRole: 'system',
+        message: `המכרז התחיל! הפריט הראשון: "${firstItem.title}"`,
+        timestamp: SERVER_TIMESTAMP,
+      });
+    }
 
     return sendOk(res, { action: 'started', auctionId, firstItemId: firstItem.id });
   } catch (err: any) {

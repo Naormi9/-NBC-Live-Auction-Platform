@@ -202,7 +202,7 @@ export default function AdminHousesPage() {
           <h2 className="text-xl font-bold mb-4">בתי מכירות</h2>
 
           {/* Add house form */}
-          <div className="glass rounded-xl p-6 mb-6">
+          <div className="glass rounded-2xl p-6 mb-6">
             <div className="flex gap-3 items-end">
               <div className="flex-1">
                 <label className="block text-sm text-text-secondary mb-1">שם בית מכירות</label>
@@ -235,7 +235,7 @@ export default function AdminHousesPage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {houses.map((house) => (
-                <div key={house.id} className="glass rounded-xl p-6">
+                <div key={house.id} className="glass rounded-2xl p-6">
                   <div className="font-bold text-lg mb-1">{house.name}</div>
                   <div className="text-sm text-text-secondary">
                     {house.createdAt
@@ -270,7 +270,7 @@ export default function AdminHousesPage() {
                 const isSaving = savingUserId === user.id;
 
                 return (
-                  <div key={user.id} className="glass rounded-xl p-5">
+                  <div key={user.id} className="glass rounded-2xl p-5">
                     <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                       {/* User info */}
                       <div className="flex-1 min-w-0">

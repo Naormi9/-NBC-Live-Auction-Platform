@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { useCurrentItem, useBidHistory, useLiveChat, useCatalog, useViewerCount, useTimer, useRegistration, useLiveAuction, useAuction } from '@/lib/hooks';
+import { useCurrentItem, useBidHistory, useLiveChat, useCatalog, useViewerCount, useTimer, useRegistration, useLiveAuction, useAuction, useScheduledCountdown } from '@/lib/hooks';
 import { trackViewer } from '@/lib/presence';
 import { playOutbidSound, playTimerWarningSound, playTimer10SecSound, playTimerEndSound, playItemSoldSound } from '@/lib/sounds';
 import Link from 'next/link';
@@ -28,6 +28,7 @@ export default function LiveRoom() {
   const secondsLeft = useTimer(auctionId);
   // Auto-register approved users entering the live room
   const { registered } = useRegistration(auctionId, user?.uid || null, true, profile?.verificationStatus);
+  const scheduledCountdown = useScheduledCountdown(auctionId, false);
 
   const prevBidderRef = useRef<string | null>(null);
   const prevItemStatusRef = useRef<string | null>(null);
@@ -183,7 +184,7 @@ export default function LiveRoom() {
       <div className="hidden lg:grid grid-cols-[280px_1fr_280px] max-w-7xl mx-auto gap-4 p-4">
         {/* Left Panel - Timer + Chat */}
         <div className="space-y-4">
-          <AuctionTimer secondsLeft={secondsLeft} currentRound={auction.currentRound} />
+          <AuctionTimer secondsLeft={secondsLeft} currentRound={auction.currentRound} scheduledCountdown={scheduledCountdown} />
           <div className="glass rounded-xl p-3 h-[400px]">
             <LiveChat auctionId={auction.id} messages={messages} registered={registered} />
           </div>
@@ -297,7 +298,7 @@ export default function LiveRoom() {
         {item && (
           <div className="fixed bottom-0 left-0 right-0 glass border-t border-border p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-center gap-3 z-50">
             <div className="flex-shrink-0">
-              <AuctionTimer secondsLeft={secondsLeft} currentRound={auction.currentRound} />
+              <AuctionTimer secondsLeft={secondsLeft} currentRound={auction.currentRound} scheduledCountdown={scheduledCountdown} />
             </div>
             <div className="flex-1">
               <BidButton auction={auction} item={item} registered={registered} />

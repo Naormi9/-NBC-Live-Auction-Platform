@@ -72,12 +72,7 @@ export const processBid = functions.region('europe-west1').database
       return;
     }
 
-    // Reject bids when timer is paused
-    if (auction.timerPaused) {
-      console.warn(`Rejected bid during paused timer: ${bid.userId}`);
-      await cleanup();
-      return;
-    }
+    // Allow bids even when timer is paused (per business requirement)
 
     // Verify user is registered for this auction
     const regSnap = await db.ref(`/registrations/${bid.auctionId}/${bid.userId}`).once('value');

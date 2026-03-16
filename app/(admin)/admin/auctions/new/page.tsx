@@ -179,15 +179,15 @@ export default function NewAuctionPage() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic info */}
-          <div className="glass rounded-xl p-6 space-y-4">
-            <h2 className="font-bold">פרטי מכרז</h2>
+          <div className="glass rounded-2xl p-6 space-y-4">
+            <h2 className="font-bold text-lg">פרטי מכרז</h2>
             <div>
               <label className="block text-sm text-text-secondary mb-1">שם המכרז</label>
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 required
-                className="w-full bg-bg-elevated border border-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-accent"
+                className="w-full bg-bg-elevated border border-border rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent transition-smooth"
                 placeholder='מכרז רכבים מרץ 2026 חלק א&apos;'
               />
             </div>
@@ -196,7 +196,7 @@ export default function NewAuctionPage() {
               <input
                 value={houseName}
                 onChange={(e) => setHouseName(e.target.value)}
-                className="w-full bg-bg-elevated border border-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-accent"
+                className="w-full bg-bg-elevated border border-border rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent transition-smooth"
                 placeholder="מרכז המכרזים הארצי"
               />
             </div>
@@ -208,7 +208,7 @@ export default function NewAuctionPage() {
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
                   required
-                  className="w-full bg-bg-elevated border border-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-accent"
+                  className="w-full bg-bg-elevated border border-border rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent transition-smooth"
                   dir="ltr"
                 />
               </div>
@@ -219,7 +219,7 @@ export default function NewAuctionPage() {
                   value={time}
                   onChange={(e) => setTime(e.target.value)}
                   required
-                  className="w-full bg-bg-elevated border border-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-accent"
+                  className="w-full bg-bg-elevated border border-border rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent transition-smooth"
                   dir="ltr"
                 />
               </div>
@@ -236,8 +236,8 @@ export default function NewAuctionPage() {
           </div>
 
           {/* Round settings */}
-          <div className="glass rounded-xl p-6 space-y-4">
-            <h2 className="font-bold">הגדרות סיבובים</h2>
+          <div className="glass rounded-2xl p-6 space-y-4">
+            <h2 className="font-bold text-lg">הגדרות סיבובים</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <RoundSetting label="סיבוב 1" inc={r1Inc} setInc={setR1Inc} timer={r1Timer} setTimer={setR1Timer} />
               <RoundSetting label="סיבוב 2" inc={r2Inc} setInc={setR2Inc} timer={r2Timer} setTimer={setR2Timer} />
@@ -249,25 +249,36 @@ export default function NewAuctionPage() {
                 type="number"
                 value={hardClose}
                 onChange={(e) => setHardClose(parseInt(e.target.value))}
-                className="w-32 bg-bg-elevated border border-border rounded-lg px-4 py-2 text-white focus:outline-none focus:border-accent"
+                className="w-32 bg-bg-elevated border border-border rounded-xl px-4 py-2 text-white focus:outline-none focus:border-accent transition-smooth"
                 dir="ltr"
               />
             </div>
           </div>
 
           {/* Items */}
-          <div className="glass rounded-xl p-6 space-y-4">
+          <div className="glass rounded-2xl p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="font-bold">פריטים ({items.length})</h2>
-              <button type="button" onClick={addItem} className="btn-accent px-3 py-1.5 rounded-lg text-sm">
+              <h2 className="font-bold text-lg">פריטים ({items.length})</h2>
+              <button type="button" onClick={addItem} className="bg-accent hover:bg-accent-hover text-white px-4 py-2 rounded-xl text-sm font-semibold transition-smooth">
                 + הוסף פריט
               </button>
             </div>
+
+            {items.length === 0 && (
+              <div className="text-center py-10 border-2 border-dashed border-border rounded-xl">
+                <div className="text-3xl mb-3 opacity-40">📦</div>
+                <p className="text-text-secondary mb-3">עדיין אין פריטים במכרז</p>
+                <button type="button" onClick={addItem} className="bg-accent hover:bg-accent-hover text-white px-6 py-2.5 rounded-xl text-sm font-semibold transition-smooth">
+                  + הוסף פריט ראשון
+                </button>
+              </div>
+            )}
+
             {items.map((item, i) => (
               <div key={i} className="bg-bg-elevated rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold">פריט {i + 1}</span>
-                  <button type="button" onClick={() => removeItem(i)} className="text-timer-red text-sm">
+                  <button type="button" onClick={() => removeItem(i)} className="text-timer-red text-sm hover:underline">
                     הסר
                   </button>
                 </div>
@@ -293,11 +304,17 @@ export default function NewAuctionPage() {
                         updateItem(i, 'files', e.target.files);
                       }
                     }}
-                    className="w-full bg-bg-primary border border-border rounded px-3 py-2 text-white text-sm file:mr-3 file:bg-accent/20 file:text-accent file:border-0 file:rounded file:px-2 file:py-1 file:text-xs"
+                    className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2 text-white text-sm file:mr-3 file:bg-accent/20 file:text-accent file:border-0 file:rounded file:px-2 file:py-1 file:text-xs"
                   />
                 </div>
               </div>
             ))}
+
+            {items.length > 0 && (
+              <button type="button" onClick={addItem} className="w-full py-3 border-2 border-dashed border-border rounded-xl text-text-secondary hover:text-white hover:border-accent/30 transition-smooth text-sm">
+                + הוסף פריט נוסף
+              </button>
+            )}
           </div>
 
           <div className="flex gap-3">
@@ -305,14 +322,14 @@ export default function NewAuctionPage() {
               type="button"
               disabled={loading}
               onClick={() => saveAuction('draft')}
-              className="flex-1 btn-dark py-4 rounded-xl text-lg font-bold disabled:opacity-50 border border-border"
+              className="flex-1 bg-bg-elevated hover:bg-bg-surface border border-border text-white py-4 rounded-xl text-lg font-bold disabled:opacity-50 transition-smooth"
             >
               {loading ? 'שומר...' : 'שמור כטיוטה'}
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 btn-accent py-4 rounded-xl text-lg font-bold disabled:opacity-50"
+              className="flex-1 bg-accent hover:bg-accent-hover text-white py-4 rounded-xl text-lg font-bold disabled:opacity-50 transition-smooth"
             >
               {loading ? 'יוצר מכרז...' : 'צור ופרסם'}
             </button>
@@ -327,7 +344,7 @@ function RoundSetting({ label, inc, setInc, timer, setTimer }: {
   label: string; inc: number; setInc: (n: number) => void; timer: number; setTimer: (n: number) => void;
 }) {
   return (
-    <div className="bg-bg-elevated rounded-lg p-3 space-y-2">
+    <div className="bg-bg-elevated rounded-xl p-4 space-y-3">
       <div className="text-sm font-semibold">{label}</div>
       <div>
         <label className="text-xs text-text-secondary">מדרגת קפיצה (₪)</label>
@@ -335,7 +352,7 @@ function RoundSetting({ label, inc, setInc, timer, setTimer }: {
           type="number"
           value={inc}
           onChange={(e) => setInc(parseInt(e.target.value))}
-          className="w-full bg-bg-primary border border-border rounded px-2 py-1 text-white text-sm"
+          className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-accent transition-smooth"
           dir="ltr"
         />
       </div>
@@ -345,7 +362,7 @@ function RoundSetting({ label, inc, setInc, timer, setTimer }: {
           type="number"
           value={timer}
           onChange={(e) => setTimer(parseInt(e.target.value))}
-          className="w-full bg-bg-primary border border-border rounded px-2 py-1 text-white text-sm"
+          className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-accent transition-smooth"
           dir="ltr"
         />
       </div>
@@ -363,7 +380,7 @@ function Input({ label, value, onChange, type = 'text', full = false }: {
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-bg-primary border border-border rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-accent"
+        className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-accent transition-smooth"
         dir={type === 'number' ? 'ltr' : undefined}
       />
     </div>

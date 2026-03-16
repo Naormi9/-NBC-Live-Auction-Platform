@@ -7,7 +7,7 @@ import * as actions from '@/lib/auction-actions';
 import { updateLiveSettings, setTimerOverride } from '@/lib/auction-actions';
 import { useAuth } from '@/lib/auth-context';
 import { isAllowedAdmin } from '@/lib/admin-allowlist';
-import { useCurrentItem, useLiveAuction, useAuction, useCatalog, useViewerCount, useTimer, useBidHistory, useLiveChat, useAutoAdvance } from '@/lib/hooks';
+import { useCurrentItem, useLiveAuction, useAuction, useCatalog, useViewerCount, useTimer, useBidHistory, useLiveChat, useAutoAdvance, useScheduledCountdown } from '@/lib/hooks';
 import { formatPrice, formatTimer, getTimerColor } from '@/lib/auction-utils';
 import LiveBadge from '../ui/LiveBadge';
 import LoadingSpinner from '../ui/LoadingSpinner';
@@ -41,6 +41,8 @@ export default function AuctioneerConsole() {
 
   // Auto-advance between rounds when timer expires
   useAutoAdvance(auctionId, true);
+  // Scheduled countdown — auto-starts bidding when countdown reaches 0
+  const scheduledCountdown = useScheduledCountdown(auctionId, true);
 
   const isPaused = secondsLeft < 0;
 
@@ -311,12 +313,19 @@ export default function AuctioneerConsole() {
                 </div>
                 <div>
                   <div className="text-xs text-text-secondary">טיימר</div>
-                  <div className={`font-bold text-xl ${
-                    timerColor === 'green' ? 'text-timer-green' :
-                    timerColor === 'orange' ? 'text-timer-orange' : 'text-timer-red'
-                  }`}>
-                    {formatTimer(secondsLeft)}
-                  </div>
+                  {scheduledCountdown !== null && scheduledCountdown > 0 ? (
+                    <div className="font-bold text-xl text-accent">
+                      {Math.floor(scheduledCountdown / 60)}:{Math.floor(scheduledCountdown % 60).toString().padStart(2, '0')}
+                      <div className="text-[10px] text-text-secondary font-normal">ספירה לאחור</div>
+                    </div>
+                  ) : (
+                    <div className={`font-bold text-xl ${
+                      timerColor === 'green' ? 'text-timer-green' :
+                      timerColor === 'orange' ? 'text-timer-orange' : 'text-timer-red'
+                    }`}>
+                      {formatTimer(secondsLeft)}
+                    </div>
+                  )}
                 </div>
               </div>
 
