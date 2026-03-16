@@ -20,17 +20,34 @@ function getTimerSecondsForBid(auction: any, roundKey: 'round1' | 'round2' | 'ro
 export const processBid = functions.region('europe-west1').database
   .ref('/pending_bids/{bidId}')
   .onCreate(async (snapshot, context) => {
+    const bidId = context.params.bidId;
     const bid = snapshot.val();
     if (!bid) return;
 
+    console.log(`[processBid] START bidId=${bidId} user=${bid?.userId} amount=${bid?.amount} item=${bid?.itemId}`);
+
     // Always clean up the pending bid, regardless of outcome
     const cleanup = () => snapshot.ref.remove();
+
+    // Write result so client can show real feedback
+    const writeResult = async (status: 'accepted' | 'rejected', reason?: string) => {
+      if (bid?.userId) {
+        await db.ref(`/bid_results/${bid.userId}/${bidId}`).set({
+          status,
+          reason: reason || null,
+          amount: bid.amount || 0,
+          itemId: bid.itemId || null,
+          timestamp: SERVER_TIMESTAMP,
+        });
+      }
+    };
 
     // Validate required bid fields
     if (typeof bid.itemId !== 'string' || typeof bid.auctionId !== 'string' ||
         typeof bid.userId !== 'string' || typeof bid.amount !== 'number' ||
         bid.amount <= 0 || !bid.userDisplayName) {
-      console.error('Invalid bid data:', JSON.stringify(bid));
+      console.error(`[processBid] REJECTED bidId=${bidId}: invalid bid data`, JSON.stringify(bid));
+      await writeResult('rejected', 'נתוני הצעה לא תקינים');
       await cleanup();
       return;
     }
@@ -46,7 +63,8 @@ export const processBid = functions.region('europe-west1').database
       const entries = Object.values(recentBidsSnap.val()) as any[];
       const last = entries[0];
       if (last && last.amount === bid.amount && last.timestamp && (Date.now() - last.timestamp) < 5000) {
-        console.warn(`Duplicate bid detected for user ${bid.userId}, amount ${bid.amount}. Skipping.`);
+        console.warn(`[processBid] REJECTED bidId=${bidId}: duplicate bid user=${bid.userId} amount=${bid.amount}`);
+        await writeResult('rejected', 'הצעה כפולה');
         await cleanup();
         return;
       }
@@ -56,7 +74,8 @@ export const processBid = functions.region('europe-west1').database
     const userSnap = await db.ref(`/users/${bid.userId}`).once('value');
     const userData = userSnap.val();
     if (!userData || userData.verificationStatus !== 'approved') {
-      console.warn(`Rejected bid from non-approved user: ${bid.userId}`);
+      console.warn(`[processBid] REJECTED bidId=${bidId}: user not approved. status=${userData?.verificationStatus}`);
+      await writeResult('rejected', 'המשתמש לא מאושר');
       await cleanup();
       return;
     }
@@ -68,6 +87,8 @@ export const processBid = functions.region('europe-west1').database
     const auctionSnap = await auctionRef.once('value');
     const auction = auctionSnap.val();
     if (!auction || auction.status !== 'live') {
+      console.warn(`[processBid] REJECTED bidId=${bidId}: auction not live. status=${auction?.status}`);
+      await writeResult('rejected', 'המכרז לא פעיל');
       await cleanup();
       return;
     }
@@ -77,7 +98,8 @@ export const processBid = functions.region('europe-west1').database
     // Verify user is registered for this auction
     const regSnap = await db.ref(`/registrations/${bid.auctionId}/${bid.userId}`).once('value');
     if (!regSnap.exists()) {
-      console.warn(`Rejected bid from unregistered user: ${bid.userId}`);
+      console.warn(`[processBid] REJECTED bidId=${bidId}: user not registered. auctionId=${bid.auctionId} userId=${bid.userId}`);
+      await writeResult('rejected', 'המשתמש לא רשום למכרז');
       await cleanup();
       return;
     }
@@ -88,22 +110,38 @@ export const processBid = functions.region('europe-west1').database
     const increment = roundSettings.increment;
     const timerDuration = getTimerSecondsForBid(auction, roundKey);
 
+    console.log(`[processBid] bidId=${bidId} round=${round} increment=${increment} timerDuration=${timerDuration}`);
+
     // Transaction to update item — atomic, only one bid wins
+    let rejectionReason: string | null = null;
     const result = await itemRef.transaction((item) => {
-      if (!item || item.status !== 'active') return item;
+      if (!item || item.status !== 'active') {
+        rejectionReason = `item not active (status=${item?.status || 'null'})`;
+        return item;
+      }
 
       const minBid = item.currentBid + increment;
 
       // Rule: minimum bid = currentBid + increment
-      if (bid.amount < minBid) return item;
+      if (bid.amount < minBid) {
+        rejectionReason = `amount ${bid.amount} < minBid ${minBid} (currentBid=${item.currentBid} + increment=${increment})`;
+        return item;
+      }
 
       // Rule: bid must be aligned to increment
-      if ((bid.amount - item.currentBid) % increment !== 0) return item;
+      if ((bid.amount - item.currentBid) % increment !== 0) {
+        rejectionReason = `amount not aligned: (${bid.amount} - ${item.currentBid}) % ${increment} = ${(bid.amount - item.currentBid) % increment}`;
+        return item;
+      }
 
       // Rule: cannot outbid yourself
-      if (bid.userId === item.currentBidderId) return item;
+      if (bid.userId === item.currentBidderId) {
+        rejectionReason = 'self-outbid';
+        return item;
+      }
 
       // Accept the bid
+      rejectionReason = null;
       item.currentBid = bid.amount;
       item.currentBidderId = bid.userId;
       item.currentBidderName = bid.userDisplayName;
@@ -114,6 +152,8 @@ export const processBid = functions.region('europe-west1').database
       const updatedItem = result.snapshot.val();
       // Only update timer if bid was actually accepted (currentBidderId changed)
       if (updatedItem.currentBidderId === bid.userId) {
+        console.log(`[processBid] ACCEPTED bidId=${bidId} amount=${bid.amount} user=${bid.userId}`);
+
         // Reset timer on successful bid
         await auctionRef.update({
           timerEndsAt: Date.now() + timerDuration * 1000,
@@ -140,7 +180,15 @@ export const processBid = functions.region('europe-west1').database
           message: `הצעה התקבלה: ₪${bid.amount.toLocaleString()} מ-${bid.userDisplayName}`,
           timestamp: SERVER_TIMESTAMP,
         });
+
+        await writeResult('accepted');
+      } else {
+        console.warn(`[processBid] REJECTED bidId=${bidId} in transaction: ${rejectionReason}`);
+        await writeResult('rejected', rejectionReason || 'ההצעה לא התקבלה');
       }
+    } else {
+      console.warn(`[processBid] REJECTED bidId=${bidId}: transaction not committed`);
+      await writeResult('rejected', 'שגיאה בעיבוד ההצעה');
     }
 
     // Clean up pending bid

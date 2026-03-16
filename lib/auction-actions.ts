@@ -4,7 +4,7 @@
  * bypassing Cloud Functions to avoid CORS issues.
  * Database rules enforce that only admin/house_manager can write.
  */
-import { ref, get, update, push, serverTimestamp, query, orderByChild, equalTo } from 'firebase/database';
+import { ref, get, update, push, serverTimestamp, query, orderByChild, equalTo, onValue, off } from 'firebase/database';
 import { db } from './firebase';
 
 const DEFAULT_SETTINGS = {
@@ -331,7 +331,7 @@ export async function submitBid(
   if (userId === item.currentBidderId) throw new Error('אינך יכול להקפיץ מעל עצמך');
 
   // Write to pending_bids — Cloud Function processBid handles the rest
-  await push(ref(db, 'pending_bids'), {
+  const bidRef = await push(ref(db, 'pending_bids'), {
     auctionId,
     itemId,
     userId,
@@ -341,7 +341,36 @@ export async function submitBid(
     timestamp: serverTimestamp(),
   });
 
-  return 'ההצעה נשלחה!';
+  const bidId = bidRef.key;
+  if (!bidId) return 'ההצעה נשלחה!';
+
+  // Wait for Cloud Function to process and write result
+  const resultRef = ref(db, `bid_results/${userId}/${bidId}`);
+  const result = await new Promise<{ status: string; reason?: string }>((resolve) => {
+    const timeout = setTimeout(() => {
+      off(resultRef);
+      resolve({ status: 'timeout' });
+    }, 8000);
+
+    onValue(resultRef, (snap) => {
+      if (snap.exists()) {
+        clearTimeout(timeout);
+        off(resultRef);
+        resolve(snap.val());
+      }
+    });
+  });
+
+  if (result.status === 'rejected') {
+    throw new Error(result.reason || 'ההצעה נדחתה');
+  }
+
+  if (result.status === 'timeout') {
+    // Don't throw — bid might still be processing
+    return 'ההצעה נשלחה (ממתין לאישור...)';
+  }
+
+  return 'ההצעה התקבלה!';
 }
 
 // ─── Update Live Settings ───────────────────────────────────

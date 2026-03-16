@@ -96,6 +96,14 @@
         }
       }
     },
+    "bid_results": {
+      "$userId": {
+        ".read": "auth != null && auth.uid === $userId",
+        "$bidId": {
+          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager')"
+        }
+      }
+    },
     "bid_history": {
       ".read": true,
       "$auctionId": {

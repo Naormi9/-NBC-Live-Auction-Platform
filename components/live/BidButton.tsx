@@ -100,7 +100,7 @@ export default function BidButton({ auction, item, registered }: BidButtonProps)
     lastBidRef.current = bidKey;
     setSubmitting(true);
     try {
-      await submitBid(
+      const result = await submitBid(
         auction.id,
         item.id,
         user.uid,
@@ -109,7 +109,7 @@ export default function BidButton({ auction, item, registered }: BidButtonProps)
         auction.currentRound as 1 | 2 | 3
       );
       playBidSound();
-      toast.success(`הצעה של ${formatPrice(nextBid)} נשלחה!`, { id: `bid-${bidKey}` });
+      toast.success(result, { id: `bid-${bidKey}` });
     } catch (err: any) {
       lastBidRef.current = null;
       toast.error(err.message || 'שגיאה בשליחת ההצעה', { id: 'bid-error' });
