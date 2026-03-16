@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { ref, onValue, query, limitToLast, orderByChild, equalTo, get } from 'firebase/database';
 import { db } from './firebase';
 import { Auction, AuctionItem, BidHistoryEntry, ChatMessage } from './types';
@@ -227,52 +227,77 @@ export function useAllAuctions() {
 export function useAutoAdvance(auctionId: string | null, isAdmin: boolean) {
   const { auction } = useAuction(auctionId);
   const [processing, setProcessing] = useState(false);
+  const processingRef = useRef(false);
+  // Track last timerEndsAt we processed to avoid re-firing for the same expiry
+  const lastProcessedRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!auctionId || !auction || !isAdmin || processing) return;
+    if (!auctionId || !auction || !isAdmin) return;
     if (auction.status !== 'live') return;
     if (auction.timerPaused) return;
     if (!auction.timerEndsAt) return;
 
+    // Skip if we already processed this exact timerEndsAt value
+    if (lastProcessedRef.current === auction.timerEndsAt) return;
+
     const remaining = auction.timerEndsAt - Date.now();
 
     const fireExpiry = () => {
+      if (processingRef.current) return;
+      processingRef.current = true;
+      lastProcessedRef.current = auction.timerEndsAt;
       setProcessing(true);
       import('./auction-actions').then(({ handleTimerExpiry }) => {
         handleTimerExpiry(auctionId).finally(() => {
-          // Debounce to avoid firing again too quickly
           setTimeout(() => {
+            processingRef.current = false;
             setProcessing(false);
-          }, 2000);
+          }, 3000);
         });
       });
     };
 
     if (remaining <= 0) {
-      // Already expired — fire immediately
       fireExpiry();
       return;
     }
 
-    // Schedule auto-advance for when timer expires
-    const timeout = setTimeout(fireExpiry, remaining + 300); // +300ms buffer
+    const timeout = setTimeout(fireExpiry, remaining + 500); // +500ms buffer to let CF act first
     return () => clearTimeout(timeout);
   }, [auctionId, auction?.timerEndsAt, auction?.status, auction?.timerPaused, isAdmin, processing]);
 }
 
-export function useRegistration(auctionId: string | null, userId: string | null) {
+export function useRegistration(auctionId: string | null, userId: string | null, autoRegister?: boolean, verificationStatus?: string) {
   const [registered, setRegistered] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!auctionId || !userId) { setRegistered(false); setLoading(false); return; }
     const regRef = ref(db, `registrations/${auctionId}/${userId}`);
-    const unsub = onValue(regRef, (snap) => {
-      setRegistered(snap.exists());
+    const unsub = onValue(regRef, async (snap) => {
+      if (snap.exists()) {
+        setRegistered(true);
+      } else if (autoRegister && verificationStatus === 'approved') {
+        // Auto-register approved users for the auction
+        try {
+          const { set, serverTimestamp } = await import('firebase/database');
+          await set(regRef, {
+            userId,
+            registeredAt: serverTimestamp(),
+            status: 'auto',
+            termsAcceptedAt: serverTimestamp(),
+          });
+          // onValue will fire again with snap.exists() === true
+        } catch {
+          setRegistered(false);
+        }
+      } else {
+        setRegistered(false);
+      }
       setLoading(false);
     });
     return () => unsub();
-  }, [auctionId, userId]);
+  }, [auctionId, userId, autoRegister, verificationStatus]);
 
   return { registered, loading };
 }

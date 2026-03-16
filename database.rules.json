@@ -2,7 +2,7 @@
   "rules": {
     "pending_bids": {
       "$bidId": {
-        ".write": "auth != null",
+        ".write": "auth != null && root.child('users').child(auth.uid).child('verificationStatus').val() === 'approved'",
         ".validate": "newData.hasChildren(['auctionId','itemId','userId','amount','timestamp']) && newData.child('userId').val() === auth.uid && newData.child('amount').isNumber() && newData.child('amount').val() > 0"
       }
     },
@@ -10,14 +10,14 @@
       ".read": true,
       ".indexOn": ["auctionId", "order"],
       "$itemId": {
-        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager')"
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager') && (auth.token.email === 'ceo@m-motors.co.il' || auth.token.email === 'office@m-motors.co.il')"
       }
     },
     "auctions": {
       ".read": true,
       ".indexOn": ["status"],
       "$auctionId": {
-        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager')"
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager') && (auth.token.email === 'ceo@m-motors.co.il' || auth.token.email === 'office@m-motors.co.il')"
       }
     },
     "pre_bids": {
@@ -26,7 +26,7 @@
           ".read": "auth != null",
           "$userId": {
             ".read": "auth != null && auth.uid === $userId",
-            ".write": "auth != null && auth.uid === $userId",
+            ".write": "auth != null && auth.uid === $userId && root.child('users').child(auth.uid).child('verificationStatus').val() === 'approved'",
             ".validate": "newData.hasChildren(['userId','amount','timestamp']) && newData.child('userId').val() === auth.uid && newData.child('amount').isNumber() && newData.child('amount').val() > 0"
           }
         }
@@ -45,13 +45,14 @@
       "$auctionId": {
         "$userId": {
           ".read": "auth != null && (auth.uid === $userId || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager')",
-          ".write": "auth != null && (auth.uid === $userId || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager')"
+          ".write": "auth != null && ((auth.uid === $userId && newData.child('status').val() !== 'approved') || (root.child('users').child(auth.uid).child('role').val() === 'admin' && (auth.token.email === 'ceo@m-motors.co.il' || auth.token.email === 'office@m-motors.co.il')))"
         }
       }
     },
     "users": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
       "$userId": {
-        ".read": "auth != null && (auth.uid === $userId || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+        ".read": "auth != null && auth.uid === $userId",
         "displayName": {
           ".write": "auth != null && auth.uid === $userId",
           ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100"
@@ -64,9 +65,27 @@
           ".write": "auth != null && ((auth.uid === $userId && !data.exists()) || root.child('users').child(auth.uid).child('role').val() === 'admin')",
           ".validate": "newData.isString()"
         },
+        "idNumber": {
+          ".write": "auth != null && auth.uid === $userId && !data.exists()",
+          ".validate": "newData.isString() && newData.val().length === 9"
+        },
         "role": {
-          ".write": "auth != null && ((auth.uid === $userId && !data.exists() && newData.val() === 'participant') || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+          ".write": "auth != null && ((auth.uid === $userId && !data.exists() && newData.val() === 'participant') || (root.child('users').child(auth.uid).child('role').val() === 'admin' && (auth.token.email === 'ceo@m-motors.co.il' || auth.token.email === 'office@m-motors.co.il')))",
           ".validate": "newData.isString() && (newData.val() === 'participant' || newData.val() === 'house_manager' || newData.val() === 'admin')"
+        },
+        "verificationStatus": {
+          ".write": "auth != null && ((auth.uid === $userId && !data.exists()) || (auth.uid === $userId && data.val() === 'pending_verification' && newData.val() === 'pending_approval'))",
+          ".validate": "newData.isString() && (newData.val() === 'pending_verification' || newData.val() === 'pending_approval' || newData.val() === 'approved' || newData.val() === 'rejected')"
+        },
+        "termsAcceptedAt": {
+          ".write": "auth != null && auth.uid === $userId && !data.exists()"
+        },
+        "signatureData": {
+          ".write": "auth != null && auth.uid === $userId && !data.exists()",
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 70000"
+        },
+        "callbackRequested": {
+          ".write": "auth != null && (auth.uid === $userId || root.child('users').child(auth.uid).child('role').val() === 'admin')"
         },
         "houseId": {
           ".write": "auth != null && ((auth.uid === $userId && !data.exists()) || root.child('users').child(auth.uid).child('role').val() === 'admin')"
@@ -81,7 +100,7 @@
       "$auctionId": {
         "$itemId": {
           "$bidId": {
-            ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager')",
+            ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'house_manager') && (auth.token.email === 'ceo@m-motors.co.il' || auth.token.email === 'office@m-motors.co.il')",
             ".validate": "newData.hasChildren(['userId','userDisplayName','amount','round','timestamp'])"
           }
         }
@@ -90,7 +109,7 @@
     "houses": {
       ".read": "auth != null",
       "$houseId": {
-        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin' && (auth.token.email === 'ceo@m-motors.co.il' || auth.token.email === 'office@m-motors.co.il')"
       }
     },
     "presence": {
@@ -103,8 +122,8 @@
     },
     "timer_locks": {
       "$auctionId": {
-        ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
-        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+        ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin' && (auth.token.email === 'ceo@m-motors.co.il' || auth.token.email === 'office@m-motors.co.il')",
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin' && (auth.token.email === 'ceo@m-motors.co.il' || auth.token.email === 'office@m-motors.co.il')"
       }
     }
   }

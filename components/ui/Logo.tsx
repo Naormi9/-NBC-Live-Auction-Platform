@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Brand logo for מרכז המכרזים הארצי
+ * Brand logo for מכרזי מיכאלי מוטורס
  * Renders inline SVG for crisp display at any size.
  */
 
@@ -19,7 +19,7 @@ export function LogoIcon({ size = 32, className }: LogoIconProps) {
       width={size}
       height={size}
       className={className}
-      aria-label="מרכז המכרזים הארצי"
+      aria-label="מכרזי מיכאלי מוטורס"
     >
       <rect x="82" y="42" width="108" height="138" rx="4" fill="url(#logoIconGrad)" />
       <rect x="18" y="14" width="124" height="124" rx="4" fill="#111111" />
@@ -46,16 +46,13 @@ interface LogoFullProps {
 
 /** Full horizontal logo: gavel icon + Hebrew text */
 export function LogoFull({ height = 40, className, tm = false }: LogoFullProps) {
-  // Aspect ratio ~ 3.2:1 for full logo
-  const width = height * 3.2;
-
   return (
     <div className={`flex items-center gap-2 ${className || ''}`} dir="rtl">
       {/* Hebrew text */}
-      <div className="flex flex-col leading-none" style={{ fontSize: height * 0.32 }}>
-        <span className="font-black text-white tracking-tight" style={{ lineHeight: 1.1 }}>מרכז</span>
-        <span className="font-black text-white tracking-tight" style={{ lineHeight: 1.1 }}>המכרזים</span>
-        <span className="font-black text-white tracking-tight" style={{ lineHeight: 1.1 }}>הארצי</span>
+      <div className="flex flex-col leading-none" style={{ fontSize: height * 0.3 }}>
+        <span className="font-black text-white tracking-tight" style={{ lineHeight: 1.1 }}>מכרזי</span>
+        <span className="font-black text-white tracking-tight" style={{ lineHeight: 1.1 }}>מיכאלי</span>
+        <span className="font-black brand-gradient-text tracking-tight" style={{ lineHeight: 1.1 }}>מוטורס</span>
       </div>
       {/* Gavel icon */}
       <div className="relative flex-shrink-0">
@@ -78,8 +75,8 @@ export function LogoCompact({ height = 32, className }: { height?: number; class
   return (
     <div className={`flex items-center gap-2 ${className || ''}`}>
       <LogoIcon size={height} />
-      <span className="font-black text-white" style={{ fontSize: height * 0.45 }}>
-        מרכז <span className="brand-gradient-text">המכרזים</span>
+      <span className="font-black text-white" style={{ fontSize: height * 0.4 }}>
+        מיכאלי <span className="brand-gradient-text">מוטורס</span>
       </span>
     </div>
   );

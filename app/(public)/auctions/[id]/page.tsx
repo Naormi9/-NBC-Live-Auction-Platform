@@ -17,7 +17,7 @@ export default function AuctionCatalogPage() {
   const auctionId = params.id as string;
   const { auction, loading: auctionLoading } = useAuction(auctionId);
   const { items, loading: itemsLoading } = useCatalog(auctionId);
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { registered } = useRegistration(auctionId, user?.uid || null);
   const [preBidItem, setPreBidItem] = useState<string | null>(null);
   const [preBidAmount, setPreBidAmount] = useState('');
@@ -52,6 +52,10 @@ export default function AuctionCatalogPage() {
       toast.error('התחבר קודם כדי להירשם');
       return;
     }
+    if (profile?.verificationStatus !== 'approved') {
+      toast.error('יש לאמת את החשבון לפני הרשמה למכרז');
+      return;
+    }
     if (!termsAccepted) {
       toast.error('יש לאשר את תנאי ההשתתפות');
       return;
@@ -59,14 +63,18 @@ export default function AuctionCatalogPage() {
     await set(ref(db, `registrations/${auctionId}/${user.uid}`), {
       userId: user.uid,
       registeredAt: serverTimestamp(),
-      status: 'approved',
+      status: 'pending',
       termsAcceptedAt: serverTimestamp(),
     });
-    toast.success('נרשמת למכרז בהצלחה!');
+    toast.success('נרשמת למכרז! ממתין לאישור אדמין');
   };
 
   const handlePreBid = async (itemId: string, item: any) => {
     if (!user || !preBidAmount || !auction) return;
+    if (profile?.verificationStatus !== 'approved') {
+      toast.error('החשבון שלך טרם אושר להשתתפות. עבור לעמוד האימות');
+      return;
+    }
     const amount = parseInt(preBidAmount);
     const openingPrice = item.openingPrice || 0;
     // Pre-bid increment from auction settings (default ₪500)

@@ -1,16 +1,18 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { ref, push, update, serverTimestamp } from 'firebase/database';
-import { db } from '@/lib/firebase';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { ref, push, update, serverTimestamp, onValue } from 'firebase/database';
+import { db, auth as firebaseAuth } from '@/lib/firebase';
 import * as actions from '@/lib/auction-actions';
 import { updateLiveSettings, setTimerOverride } from '@/lib/auction-actions';
 import { useAuth } from '@/lib/auth-context';
+import { isAllowedAdmin } from '@/lib/admin-allowlist';
 import { useCurrentItem, useLiveAuction, useAuction, useCatalog, useViewerCount, useTimer, useBidHistory, useLiveChat, useAutoAdvance } from '@/lib/hooks';
 import { formatPrice, formatTimer, getTimerColor } from '@/lib/auction-utils';
 import LiveBadge from '../ui/LiveBadge';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import toast from 'react-hot-toast';
+import type { VerificationStatus } from '@/lib/types';
 
 export default function AuctioneerConsole() {
   const { user, profile } = useAuth();
@@ -30,6 +32,12 @@ export default function AuctioneerConsole() {
   const [editTimer, setEditTimer] = useState('');
   const [overrideSeconds, setOverrideSeconds] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const [showParticipants, setShowParticipants] = useState(false);
+  const [participants, setParticipants] = useState<any[]>([]);
+  const [participantCount, setParticipantCount] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
+  const prevPendingCountRef = useRef(-1);
+  const [updatingUid, setUpdatingUid] = useState<string | null>(null);
 
   // Auto-advance between rounds when timer expires
   useAutoAdvance(auctionId, true);
@@ -39,6 +47,71 @@ export default function AuctioneerConsole() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
+
+  // Real-time participants listener for admin
+  useEffect(() => {
+    const usersRef = ref(db, 'users');
+    const unsub = onValue(usersRef, (snap) => {
+      if (!snap.exists()) { setParticipants([]); setParticipantCount(0); setPendingCount(0); return; }
+      const data = snap.val();
+      const list = Object.entries(data)
+        .map(([uid, val]: [string, any]) => ({ uid, ...val }))
+        .filter((u: any) => !isAllowedAdmin(u.email))
+        .sort((a: any, b: any) => {
+          const order: Record<string, number> = { pending_approval: 0, pending_verification: 1, rejected: 2, approved: 3 };
+          return (order[a.verificationStatus] ?? 9) - (order[b.verificationStatus] ?? 9);
+        });
+      setParticipants(list);
+      setParticipantCount(list.length);
+      const newPending = list.filter((u: any) => u.verificationStatus === 'pending_approval' || u.verificationStatus === 'pending_verification').length;
+      // Notify when new pending users arrive (skip initial load when ref is -1)
+      if (prevPendingCountRef.current >= 0 && newPending > prevPendingCountRef.current) {
+        const diff = newPending - prevPendingCountRef.current;
+        toast(`${diff} נרשמים חדשים ממתינים לאישור`, { icon: '🔔', id: 'new-pending' });
+      }
+      prevPendingCountRef.current = newPending;
+      setPendingCount(newPending);
+    });
+    return () => unsub();
+  }, []);
+
+  const handleApproveUser = async (uid: string) => {
+    if (!firebaseAuth.currentUser) return;
+    setUpdatingUid(uid);
+    try {
+      const token = await firebaseAuth.currentUser.getIdToken();
+      const res = await fetch('/api/admin/update-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ targetUid: uid, newStatus: 'approved' }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      toast.success('אושר', { id: `approve-${uid}` });
+    } catch {
+      toast.error('שגיאה באישור', { id: `approve-err-${uid}` });
+    } finally {
+      setUpdatingUid(null);
+    }
+  };
+
+  const handleRejectUser = async (uid: string) => {
+    if (!firebaseAuth.currentUser) return;
+    setUpdatingUid(uid);
+    try {
+      const token = await firebaseAuth.currentUser.getIdToken();
+      const res = await fetch('/api/admin/update-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ targetUid: uid, newStatus: 'rejected' }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      toast.success('נדחה', { id: `reject-${uid}` });
+    } catch {
+      toast.error('שגיאה', { id: `reject-err-${uid}` });
+    } finally {
+      setUpdatingUid(null);
+    }
+  };
 
   if (liveLoading) return <LoadingSpinner size="lg" />;
 
@@ -55,9 +128,9 @@ export default function AuctioneerConsole() {
     if (!auctionId) return;
     try {
       const msg = await actions.activateNextItem(auctionId);
-      toast.success(msg);
+      toast.success(msg, { id: 'activate-item' });
     } catch (err: any) {
-      toast.error(err.message || 'שגיאה');
+      toast.error(err.message || 'שגיאה', { id: 'activate-err' });
     }
   };
 
@@ -65,9 +138,9 @@ export default function AuctioneerConsole() {
     if (!auctionId) return;
     try {
       const msg = await actions.addTime(auctionId, seconds);
-      toast.success(msg);
+      toast.success(msg, { id: 'add-time' });
     } catch (err: any) {
-      toast.error(err.message || 'שגיאה');
+      toast.error(err.message || 'שגיאה', { id: 'add-time-err' });
     }
   };
 
@@ -75,9 +148,9 @@ export default function AuctioneerConsole() {
     if (!auctionId) return;
     try {
       const msg = await actions.pauseTimer(auctionId);
-      toast.success(msg);
+      toast.success(msg, { id: 'timer-control' });
     } catch (err: any) {
-      toast.error(err.message || 'שגיאה');
+      toast.error(err.message || 'שגיאה', { id: 'timer-err' });
     }
   };
 
@@ -85,9 +158,9 @@ export default function AuctioneerConsole() {
     if (!auctionId) return;
     try {
       const msg = await actions.resumeTimer(auctionId);
-      toast.success(msg);
+      toast.success(msg, { id: 'timer-control' });
     } catch (err: any) {
-      toast.error(err.message || 'שגיאה');
+      toast.error(err.message || 'שגיאה', { id: 'timer-err' });
     }
   };
 
@@ -96,9 +169,9 @@ export default function AuctioneerConsole() {
     setIsAdvancing(true);
     try {
       const msg = await actions.closeItemAndAdvance(auctionId, markAsSold);
-      toast.success(msg);
+      toast.success(msg, { id: 'advance-item' });
     } catch (err: any) {
-      toast.error(err.message || 'שגיאה בביצוע הפעולה');
+      toast.error(err.message || 'שגיאה בביצוע הפעולה', { id: 'advance-err' });
     } finally {
       setIsAdvancing(false);
     }
@@ -109,9 +182,9 @@ export default function AuctioneerConsole() {
     setIsAdvancing(true);
     try {
       const msg = await actions.advanceRound(auctionId);
-      toast.success(msg);
+      toast.success(msg, { id: 'advance-round' });
     } catch (err: any) {
-      toast.error(err.message || 'שגיאה');
+      toast.error(err.message || 'שגיאה', { id: 'advance-round-err' });
     } finally {
       setIsAdvancing(false);
     }
@@ -122,9 +195,9 @@ export default function AuctioneerConsole() {
     setIsAdvancing(true);
     try {
       const msg = await actions.endAuction(auctionId);
-      toast.success(msg);
+      toast.success(msg, { id: 'end-auction' });
     } catch (err: any) {
-      toast.error(err.message || 'שגיאה');
+      toast.error(err.message || 'שגיאה', { id: 'end-auction-err' });
     } finally {
       setIsAdvancing(false);
     }
@@ -348,15 +421,15 @@ export default function AuctioneerConsole() {
                         if (!auctionId) return;
                         const sec = parseInt(overrideSeconds);
                         if (isNaN(sec) || sec <= 0) {
-                          toast.error('הזן מספר שניות תקין');
+                          toast.error('הזן מספר שניות תקין', { id: 'override-err' });
                           return;
                         }
                         try {
                           const msg = await setTimerOverride(auctionId, sec);
-                          toast.success(msg);
+                          toast.success(msg, { id: 'override-set' });
                           setOverrideSeconds('');
                         } catch (err: any) {
-                          toast.error(err.message || 'שגיאה');
+                          toast.error(err.message || 'שגיאה', { id: 'override-err' });
                         }
                       }}
                       className="btn-accent py-2 px-4 rounded-lg text-xs font-bold"
@@ -369,9 +442,9 @@ export default function AuctioneerConsole() {
                           if (!auctionId) return;
                           try {
                             const msg = await setTimerOverride(auctionId, null);
-                            toast.success(msg);
+                            toast.success(msg, { id: 'override-clear' });
                           } catch (err: any) {
-                            toast.error(err.message || 'שגיאה');
+                            toast.error(err.message || 'שגיאה', { id: 'override-err' });
                           }
                         }}
                         className="btn-dark py-2 px-3 rounded-lg text-xs"
@@ -431,14 +504,14 @@ export default function AuctioneerConsole() {
                     const inc = parseInt(editIncrement);
                     const timer = parseInt(editTimer);
                     if (isNaN(inc) || isNaN(timer) || inc <= 0 || timer <= 0) {
-                      toast.error('ערכים לא תקינים');
+                      toast.error('ערכים לא תקינים', { id: 'settings-err' });
                       return;
                     }
                     try {
                       const msg = await updateLiveSettings(auctionId, editRound, inc, timer);
-                      toast.success(msg);
+                      toast.success(msg, { id: 'settings-saved' });
                     } catch (err: any) {
-                      toast.error(err.message || 'שגיאה');
+                      toast.error(err.message || 'שגיאה', { id: 'settings-err' });
                     }
                   }}
                   className="w-full btn-accent py-2 rounded-lg text-sm font-bold"
@@ -485,26 +558,124 @@ export default function AuctioneerConsole() {
         </div>
       </div>
 
-      {/* Upcoming items */}
+      {/* Full Catalog Progress */}
       <div className="glass rounded-xl p-4">
-        <h2 className="text-sm font-semibold text-text-secondary mb-3">פריטים הבאים</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-          {items
-            .filter((i) => i.status === 'pending')
-            .slice(0, 6)
-            .map((upItem) => (
-              <div key={upItem.id} className="bg-bg-elevated rounded-lg p-3 flex items-center gap-3">
-                <span className="w-8 h-8 rounded-full bg-bg-surface flex items-center justify-center text-sm font-bold">
-                  {upItem.order}
+        <h2 className="text-sm font-semibold text-text-secondary mb-3">
+          קטלוג ({items.filter(i => i.status === 'sold').length} נמכרו / {items.filter(i => i.status === 'pending').length} בתור / {items.length} סה&quot;כ)
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-2">
+          {items.map((catItem) => {
+            const isActive = catItem.id === auction.currentItemId;
+            const isSold = catItem.status === 'sold';
+            const isUnsold = catItem.status === 'unsold';
+            return (
+              <div key={catItem.id} className={`rounded-lg p-3 flex items-center gap-3 ${
+                isActive ? 'bg-accent/20 border border-accent/30' :
+                isSold ? 'bg-bid-price/10 border border-bid-price/20' :
+                isUnsold ? 'bg-timer-orange/10 border border-timer-orange/20 opacity-60' :
+                'bg-bg-elevated'
+              }`}>
+                <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                  isActive ? 'bg-accent text-white' :
+                  isSold ? 'bg-bid-price text-white' :
+                  isUnsold ? 'bg-timer-orange text-white' :
+                  'bg-bg-surface'
+                }`}>
+                  {catItem.order}
                 </span>
-                <div>
-                  <div className="text-sm font-medium">{upItem.title}</div>
-                  <div className="text-xs text-text-secondary">{formatPrice(upItem.openingPrice)}</div>
+                <div className="min-w-0">
+                  <div className="text-sm font-medium truncate">{catItem.title}</div>
+                  <div className="text-xs text-text-secondary">
+                    {isActive ? (
+                      <span className="text-accent font-bold">{formatPrice(catItem.currentBid)} — חי</span>
+                    ) : isSold ? (
+                      <span className="text-bid-price">נמכר {formatPrice(catItem.soldPrice || catItem.currentBid)}</span>
+                    ) : isUnsold ? (
+                      <span className="text-timer-orange">לא נמכר</span>
+                    ) : (
+                      <>{formatPrice(catItem.openingPrice)}{catItem.preBidPrice ? ` (הצעה: ${formatPrice(catItem.preBidPrice)})` : ''}</>
+                    )}
+                  </div>
                 </div>
               </div>
-            ))}
+            );
+          })}
         </div>
       </div>
+
+      {/* Floating Participants Button */}
+      <button
+        onClick={() => setShowParticipants(!showParticipants)}
+        className="fixed bottom-6 left-6 z-50 w-14 h-14 rounded-full bg-accent hover:bg-accent/80 text-white shadow-lg flex items-center justify-center transition-smooth"
+      >
+        <span className="text-xl">👥</span>
+        {pendingCount > 0 && (
+          <span className="absolute -top-1 -right-1 bg-timer-red text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold animate-pulse">
+            {pendingCount}
+          </span>
+        )}
+      </button>
+
+      {/* Floating Participants Drawer */}
+      {showParticipants && (
+        <>
+        <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setShowParticipants(false)} />
+        <div className="fixed inset-y-0 left-0 z-50 w-80 bg-bg-primary/95 backdrop-blur-xl border-r border-border shadow-2xl flex flex-col">
+          <div className="p-4 border-b border-border flex items-center justify-between">
+            <h2 className="font-bold text-sm">משתתפים ({participantCount})</h2>
+            <button onClick={() => setShowParticipants(false)} className="text-text-secondary hover:text-white text-lg">✕</button>
+          </div>
+          {pendingCount > 0 && (
+            <div className="px-4 py-2 bg-orange-500/10 border-b border-border text-xs text-orange-400 font-medium">
+              {pendingCount} ממתינים לאישור
+            </div>
+          )}
+          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            {participants.map((p) => {
+              const isPending = p.verificationStatus === 'pending_approval' || p.verificationStatus === 'pending_verification';
+              const isApproved = p.verificationStatus === 'approved';
+              const isRejected = p.verificationStatus === 'rejected';
+              const isUpdating = updatingUid === p.uid;
+              return (
+                <div key={p.uid} className={`rounded-lg p-2 text-xs ${isPending ? 'bg-orange-500/10 border border-orange-500/20' : 'bg-bg-elevated/50'}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold truncate">{p.displayName || 'ללא שם'}</div>
+                      <div className="text-text-secondary truncate">{p.phone || p.email}</div>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {isApproved && <span className="text-green-400 text-[10px] font-bold">✓</span>}
+                      {isRejected && <span className="text-red-400 text-[10px] font-bold">✗</span>}
+                      {!isApproved && (
+                        <button
+                          onClick={() => handleApproveUser(p.uid)}
+                          disabled={isUpdating}
+                          className="px-2 py-0.5 bg-green-600 hover:bg-green-700 text-white rounded text-[10px] font-bold disabled:opacity-50"
+                        >
+                          {isUpdating ? '...' : 'אשר'}
+                        </button>
+                      )}
+                      {isPending && (
+                        <button
+                          onClick={() => handleRejectUser(p.uid)}
+                          disabled={isUpdating}
+                          className="px-2 py-0.5 bg-red-600 hover:bg-red-700 text-white rounded text-[10px] font-bold disabled:opacity-50"
+                        >
+                          דחה
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {p.callbackRequested && (
+                    <div className="mt-1 text-blue-400 text-[10px]">📞 ביקש חזרה טלפונית</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        </>
+      )}
     </div>
   );
 }

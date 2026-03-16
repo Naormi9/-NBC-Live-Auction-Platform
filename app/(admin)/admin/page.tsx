@@ -47,6 +47,10 @@ export default function AdminDashboard() {
             <div className="text-3xl mb-2">🎛️</div>
             <div className="font-bold">פאנל כרוז (לייב)</div>
           </Link>
+          <Link href="/admin/registrations" className="glass rounded-xl p-6 hover:border-accent/30 transition-smooth border border-transparent text-center">
+            <div className="text-3xl mb-2">👥</div>
+            <div className="font-bold">ניהול נרשמים</div>
+          </Link>
           <Link href="/admin/houses" className="glass rounded-xl p-6 hover:border-accent/30 transition-smooth border border-transparent text-center">
             <div className="text-3xl mb-2">🏠</div>
             <div className="font-bold">בתי מכירות ומשתמשים</div>

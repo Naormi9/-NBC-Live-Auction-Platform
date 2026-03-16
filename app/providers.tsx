@@ -15,7 +15,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
             color: '#FFFFFF',
             border: '1px solid rgba(255,255,255,0.08)',
           },
+          duration: 3000,
+          success: { duration: 2500 },
+          error: { duration: 4000 },
         }}
+        containerStyle={{ top: 16 }}
       />
     </AuthProvider>
   );

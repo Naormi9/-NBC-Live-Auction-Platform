@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
-import { ref, get } from 'firebase/database';
+import { ref, onValue } from 'firebase/database';
 import { auth, db } from './firebase';
 import { UserProfile } from './types';
 
@@ -24,26 +24,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+    let profileUnsub: (() => void) | null = null;
+
+    const authUnsub = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
+      // Clean up previous profile listener
+      if (profileUnsub) {
+        profileUnsub();
+        profileUnsub = null;
+      }
       if (firebaseUser) {
-        try {
-          const snap = await get(ref(db, `users/${firebaseUser.uid}`));
+        // Real-time listener so approval/rejection updates instantly
+        profileUnsub = onValue(ref(db, `users/${firebaseUser.uid}`), (snap) => {
           if (snap.exists()) {
             setProfile(snap.val() as UserProfile);
           } else {
             setProfile(null);
           }
-        } catch (err) {
+          setLoading(false);
+        }, (err) => {
           console.error('Failed to fetch user profile:', err);
           setProfile(null);
-        }
+          setLoading(false);
+        });
       } else {
         setProfile(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
-    return () => unsub();
+
+    return () => {
+      authUnsub();
+      if (profileUnsub) profileUnsub();
+    };
   }, []);
 
   return (

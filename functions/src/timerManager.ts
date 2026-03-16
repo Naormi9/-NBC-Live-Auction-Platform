@@ -44,6 +44,7 @@ export const timerTick = functions.region('europe-west1').pubsub
       try {
       const auction = auctionData as any;
 
+      if (auction.timerPaused) continue;
       if (!auction.timerEndsAt || auction.timerEndsAt > now) continue;
       if (!auction.currentItemId) continue;
 
@@ -79,6 +80,7 @@ export const timerTick = functions.region('europe-west1').pubsub
           await db.ref(`/auctions/${auctionId}`).update({
             round1Resets: round1Resets + 1,
             timerEndsAt: now + getTimerSeconds(settings, 'round1') * 1000,
+            timerPaused: false,
           });
           await db.ref(`/live_chat/${auctionId}`).push({
             senderId: 'system',
@@ -113,6 +115,7 @@ async function advanceRound(auctionId: string, nextRound: 2 | 3, settings: any) 
     currentRound: nextRound,
     timerEndsAt: now + timerSeconds * 1000,
     timerDuration: timerSeconds,
+    timerPaused: false,
   });
 
   await db.ref(`/live_chat/${auctionId}`).push({
@@ -138,6 +141,9 @@ async function closeItemAndAdvance(auctionId: string, auction: any, settings: an
       status: 'sold',
       soldAt: admin.database.ServerValue.TIMESTAMP,
       soldPrice: item.currentBid,
+      winnerId: item.currentBidderId,
+      winnerName: item.currentBidderName,
+      winnerPaymentStatus: 'pending',
     });
     await db.ref(`/live_chat/${auctionId}`).push({
       senderId: 'system',
@@ -186,11 +192,30 @@ async function closeItemAndAdvance(auctionId: string, auction: any, settings: an
     await lockRef.remove();
   } else {
     const nextItem = pendingItems[0] as any;
+    // Credit highest pre-bidder if exists
+    let preBidderId: string | null = null;
+    let preBidderName: string | null = null;
+    if (nextItem.preBidPrice) {
+      const preBidsSnap = await db.ref(`/pre_bids/${auctionId}/${nextItem.id}`).once('value');
+      if (preBidsSnap.exists()) {
+        const bids = preBidsSnap.val();
+        let highest: { userId: string; name: string; amount: number } | null = null;
+        for (const bid of Object.values(bids) as any[]) {
+          if (bid && typeof bid.amount === 'number' && (!highest || bid.amount > highest.amount)) {
+            highest = { userId: bid.userId, name: bid.userDisplayName || 'משתתף', amount: bid.amount };
+          }
+        }
+        if (highest) {
+          preBidderId = highest.userId;
+          preBidderName = highest.name;
+        }
+      }
+    }
     await db.ref(`/auction_items/${nextItem.id}`).update({
       status: 'active',
       currentBid: nextItem.preBidPrice || nextItem.openingPrice || 0,
-      currentBidderId: null,
-      currentBidderName: null,
+      currentBidderId: preBidderId,
+      currentBidderName: preBidderName,
     });
     const timerSec = getTimerSeconds(settings, 'round1');
     await db.ref(`/auctions/${auctionId}`).update({
@@ -200,6 +225,7 @@ async function closeItemAndAdvance(auctionId: string, auction: any, settings: an
       itemStartedAt: now,
       timerEndsAt: now + timerSec * 1000,
       timerDuration: timerSec,
+      timerPaused: false,
     });
     await db.ref(`/live_chat/${auctionId}`).push({
       senderId: 'system',
