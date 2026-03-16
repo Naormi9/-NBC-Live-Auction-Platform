@@ -56,7 +56,7 @@ export default function AuctionResultsPage() {
     <div className="min-h-screen">
       <Navbar />
       <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-        <div className="glass rounded-xl p-6">
+        <div className="glass rounded-2xl p-6">
           <h1 className="text-2xl font-bold mb-2">תוצאות — {auction.title}</h1>
           <p className="text-text-secondary">{auction.houseName}</p>
         </div>
@@ -71,23 +71,23 @@ export default function AuctionResultsPage() {
 
         {/* Sold items */}
         {soldItems.length > 0 && (
-          <div className="glass rounded-xl p-6">
+          <div className="glass rounded-2xl p-6">
             <h2 className="font-bold mb-4 text-bid-price">פריטים שנמכרו ({soldItems.length})</h2>
             <div className="space-y-2">
               {soldItems.map((item, index) => (
-                <div key={item.id} className="bg-bg-elevated rounded-lg p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="w-8 h-8 rounded-full bg-bid-price/20 text-bid-price flex items-center justify-center text-sm font-bold">
+                <div key={item.id} className="bg-bg-elevated rounded-xl p-4 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="w-8 h-8 rounded-full bg-bid-price/20 text-bid-price flex items-center justify-center text-sm font-bold flex-shrink-0">
                       {item.order}
                     </span>
-                    <div>
-                      <div className="font-semibold">{item.title}</div>
+                    <div className="min-w-0">
+                      <div className="font-semibold truncate">{item.title}</div>
                       <div className="text-xs text-text-secondary">
                         זוכה: {anonymize(item.currentBidderName, index)}
                       </div>
                     </div>
                   </div>
-                  <div className="text-left">
+                  <div className="text-left flex-shrink-0">
                     <div className="text-xs text-text-secondary line-through">{formatPrice(item.openingPrice)}</div>
                     <div className="font-bold text-bid-price text-lg">{formatPrice(item.soldPrice || 0)}</div>
                   </div>
@@ -99,18 +99,18 @@ export default function AuctionResultsPage() {
 
         {/* Unsold items */}
         {unsoldItems.length > 0 && (
-          <div className="glass rounded-xl p-6">
+          <div className="glass rounded-2xl p-6">
             <h2 className="font-bold mb-4 text-text-secondary">פריטים שלא נמכרו ({unsoldItems.length})</h2>
             <div className="space-y-2">
               {unsoldItems.map((item) => (
-                <div key={item.id} className="bg-bg-elevated rounded-lg p-4 flex items-center justify-between opacity-60">
-                  <div className="flex items-center gap-3">
-                    <span className="w-8 h-8 rounded-full bg-bg-surface flex items-center justify-center text-sm font-bold">
+                <div key={item.id} className="bg-bg-elevated rounded-xl p-4 flex items-center justify-between opacity-60">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="w-8 h-8 rounded-full bg-bg-surface flex items-center justify-center text-sm font-bold flex-shrink-0">
                       {item.order}
                     </span>
-                    <div className="font-semibold">{item.title}</div>
+                    <div className="font-semibold truncate">{item.title}</div>
                   </div>
-                  <div className="text-text-secondary text-sm">{formatPrice(item.openingPrice)}</div>
+                  <div className="text-text-secondary text-sm flex-shrink-0">{formatPrice(item.openingPrice)}</div>
                 </div>
               ))}
             </div>
@@ -120,7 +120,7 @@ export default function AuctionResultsPage() {
         {/* Share button */}
         <button
           onClick={handleShare}
-          className="w-full glass rounded-xl p-4 text-center font-semibold hover:border-accent/30 transition-smooth border border-transparent"
+          className="w-full glass rounded-2xl p-4 text-center font-semibold hover:border-accent/30 transition-smooth border border-transparent"
         >
           📤 שתף תוצאות
         </button>
@@ -131,7 +131,7 @@ export default function AuctionResultsPage() {
 
 function StatCard({ label, value, color = 'text-white' }: { label: string; value: string; color?: string }) {
   return (
-    <div className="glass rounded-xl p-4 text-center">
+    <div className="glass rounded-2xl p-5 text-center">
       <div className={`text-2xl font-black ${color}`}>{value}</div>
       <div className="text-sm text-text-secondary mt-1">{label}</div>
     </div>

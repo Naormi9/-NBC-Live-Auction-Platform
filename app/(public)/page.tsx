@@ -35,7 +35,7 @@ export default function HomePage() {
             מכרזי רכבים חיים של מיכאלי מוטורס — יוקרה, משפחתיות, ג&apos;יפים ועוד. הציעו מחיר והשתתפו בלייב
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link href="/auctions" className="btn-dark text-base px-8 py-4 rounded-xl">
+            <Link href="/auctions" className="bg-bg-elevated hover:bg-bg-surface border border-border text-white text-base px-8 py-4 rounded-xl font-semibold transition-smooth">
               לצפייה במכרזים פעילים
             </Link>
             <Link href="/register" className="brand-gradient text-white text-base px-8 py-4 rounded-xl font-semibold transition-smooth hover:opacity-90">
@@ -57,13 +57,13 @@ export default function HomePage() {
               <Link
                 key={auction.id}
                 href="/live"
-                className="glass rounded-xl p-6 hover:border-accent/30 transition-smooth border border-transparent"
+                className="glass rounded-2xl p-6 hover:border-accent/30 transition-smooth border border-transparent group"
               >
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-lg font-bold">{auction.title}</h3>
+                  <h3 className="text-lg font-bold group-hover:text-accent transition-smooth truncate">{auction.title}</h3>
                   <LiveBadge />
                 </div>
-                <div className="text-sm text-text-secondary">
+                <div className="text-sm text-text-secondary truncate">
                   <span>{auction.houseName}</span>
                 </div>
               </Link>
@@ -83,7 +83,7 @@ export default function HomePage() {
               <Link
                 key={auction.id}
                 href={`/auctions/${auction.id}`}
-                className="glass rounded-xl p-5 hover:border-accent/30 transition-smooth border border-transparent"
+                className="glass rounded-2xl p-5 hover:border-accent/30 transition-smooth border border-transparent group flex flex-col"
               >
                 <div className="flex items-center justify-between mb-3">
                   <AuctionStatusBadge status={auction.status} />
@@ -91,8 +91,8 @@ export default function HomePage() {
                     {new Date(auction.scheduledAt).toLocaleDateString('he-IL')}
                   </span>
                 </div>
-                <h3 className="font-bold mb-1">{auction.title}</h3>
-                <p className="text-sm text-text-secondary">{auction.houseName}</p>
+                <h3 className="font-bold mb-1 truncate group-hover:text-accent transition-smooth">{auction.title}</h3>
+                <p className="text-sm text-text-secondary truncate">{auction.houseName}</p>
               </Link>
             ))}
           </div>
@@ -146,7 +146,7 @@ export default function HomePage() {
 
 function Feature({ icon, title, desc }: { icon: string; title: string; desc: string }) {
   return (
-    <div className="text-center space-y-3">
+    <div className="glass rounded-2xl p-6 text-center space-y-3">
       <div className="text-4xl">{icon}</div>
       <h3 className="text-lg font-bold">{title}</h3>
       <p className="text-text-secondary text-sm">{desc}</p>

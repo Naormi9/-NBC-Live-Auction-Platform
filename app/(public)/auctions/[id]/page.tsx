@@ -22,7 +22,6 @@ export default function AuctionCatalogPage() {
   const [preBidItem, setPreBidItem] = useState<string | null>(null);
   const [preBidAmount, setPreBidAmount] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
-  // Track user's existing pre-bids: { [itemId]: amount }
   const [userPreBids, setUserPreBids] = useState<Record<string, number>>({});
 
   // Listen to current user's pre-bids for this auction
@@ -77,32 +76,26 @@ export default function AuctionCatalogPage() {
     }
     const amount = parseInt(preBidAmount);
     const openingPrice = item.openingPrice || 0;
-    // Pre-bid increment from auction settings (default ₪500)
     const preBidIncrement = (auction.settings as any)?.preBidIncrement || auction.settings?.round1?.increment || 500;
 
     if (isNaN(amount) || amount <= 0) {
       toast.error('הכנס סכום תקין');
       return;
     }
-    // Must be at least the opening price
     if (amount < openingPrice) {
       toast.error(`הצעה חייבת להיות לפחות מחיר הפתיחה (${formatPrice(openingPrice)})`);
       return;
     }
-    // Must be aligned to increment steps from opening price
     if ((amount - openingPrice) % preBidIncrement !== 0) {
       toast.error(`הצעה חייבת להיות בקפיצות של ${formatPrice(preBidIncrement)} ממחיר הפתיחה`);
       return;
     }
-    // Can't outbid yourself - check if this user is already the highest bidder
     const currentPreBidPrice = item.preBidPrice || 0;
     const existingBid = userPreBids[itemId];
     if (existingBid && existingBid >= currentPreBidPrice && currentPreBidPrice > 0) {
-      // User is the highest bidder - can only bid if someone else outbid them
       toast.error('אינך יכול להקפיץ מעל עצמך. המתן עד שמישהו אחר יציע');
       return;
     }
-    // New bid must be higher than current max pre-bid
     if (amount <= currentPreBidPrice) {
       toast.error(`הצעה חייבת להיות גבוהה מההצעה הנוכחית (${formatPrice(currentPreBidPrice)})`);
       return;
@@ -134,7 +127,7 @@ export default function AuctionCatalogPage() {
       <Navbar />
       <div className="max-w-5xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="glass rounded-xl p-6 mb-6">
+        <div className="glass rounded-2xl p-6 mb-6">
           <div className="flex items-center gap-3 mb-3">
             <AuctionStatusBadge status={auction.status} />
             <span className="text-sm text-text-secondary">
@@ -146,12 +139,12 @@ export default function AuctionCatalogPage() {
           <p className="text-text-secondary">{auction.houseName}</p>
 
           {!registered && user && (
-            <div className="mt-4 space-y-2">
+            <div className="mt-4 space-y-3 p-4 bg-accent/5 border border-accent/20 rounded-xl">
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <input type="checkbox" checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} className="accent-accent w-4 h-4" />
                 <span>אני מאשר/ת את תנאי ההשתתפות במכרז ומסכים/ה לתנאי השימוש</span>
               </label>
-              <button onClick={handleRegister} disabled={!termsAccepted} className="btn-accent px-6 py-3 rounded-xl disabled:opacity-50">
+              <button onClick={handleRegister} disabled={!termsAccepted} className="bg-accent hover:bg-accent-hover text-white px-6 py-3 rounded-xl font-semibold disabled:opacity-50 transition-smooth">
                 הירשם למכרז זה
               </button>
             </div>
@@ -172,7 +165,7 @@ export default function AuctionCatalogPage() {
         <h2 className="text-lg font-bold mb-4">קטלוג — {items.length} פריטים</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {items.map((item) => (
-            <div key={item.id} className="glass rounded-xl overflow-hidden">
+            <div key={item.id} className="glass rounded-2xl overflow-hidden flex flex-col">
               {/* Image */}
               <div className="aspect-video bg-bg-elevated flex items-center justify-center">
                 {item.images?.[0] ? (
@@ -181,12 +174,12 @@ export default function AuctionCatalogPage() {
                   <div className="text-text-secondary text-sm">{item.make} {item.model}</div>
                 )}
               </div>
-              <div className="p-4 space-y-2">
+              <div className="p-4 space-y-2 flex-1 flex flex-col">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-text-secondary">פריט {item.order}</span>
                   <ItemStatusBadge status={item.status} />
                 </div>
-                <h3 className="font-bold">{item.title}</h3>
+                <h3 className="font-bold truncate">{item.title}</h3>
                 <div className="grid grid-cols-2 gap-1 text-xs text-text-secondary">
                   <span>{item.year} • {item.km?.toLocaleString()} ק&quot;מ</span>
                   <span>יד {item.owners} • {item.color}</span>
@@ -196,9 +189,9 @@ export default function AuctionCatalogPage() {
                   <span className="font-bold text-bid-price">{formatPrice(item.openingPrice)}</span>
                 </div>
 
-                {/* Highest pre-bid (anonymous per spec) */}
+                {/* Highest pre-bid */}
                 {item.preBidPrice && item.preBidPrice > item.openingPrice && (
-                  <div className="flex items-center justify-between text-sm bg-bid-price/10 border border-bid-price/20 rounded-lg px-3 py-2">
+                  <div className="flex items-center justify-between text-sm bg-bid-price/10 border border-bid-price/20 rounded-xl px-3 py-2">
                     <span className="text-text-secondary">הצעה מוקדמת גבוהה</span>
                     <span className="font-bold text-bid-price">{formatPrice(item.preBidPrice)}</span>
                   </div>
@@ -206,49 +199,50 @@ export default function AuctionCatalogPage() {
 
                 {/* Show user's existing pre-bid */}
                 {userPreBids[item.id] && (
-                  <div className="flex items-center justify-between text-sm bg-accent/10 border border-accent/20 rounded-lg px-3 py-2">
+                  <div className="flex items-center justify-between text-sm bg-accent/10 border border-accent/20 rounded-xl px-3 py-2">
                     <span className="text-text-secondary">ההצעה שלך</span>
                     <span className="font-bold text-accent">{formatPrice(userPreBids[item.id])}</span>
                   </div>
                 )}
 
                 {/* Pre-bid button */}
-                {/* Pre-bid: available for pending items if preBids enabled, even during live per spec */}
-                {auction.preBidsEnabled && registered && item.status === 'pending' && (
-                  <>
-                    {preBidItem === item.id ? (
-                      <div className="flex gap-2 mt-2">
-                        <input
-                          type="number"
-                          value={preBidAmount}
-                          onChange={(e) => setPreBidAmount(e.target.value)}
-                          placeholder={userPreBids[item.id] ? `מעל ${formatPrice(userPreBids[item.id])}` : 'סכום הצעה'}
-                          className="flex-1 bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent"
-                          dir="ltr"
-                        />
+                <div className="mt-auto pt-2">
+                  {auction.preBidsEnabled && registered && item.status === 'pending' && (
+                    <>
+                      {preBidItem === item.id ? (
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            value={preBidAmount}
+                            onChange={(e) => setPreBidAmount(e.target.value)}
+                            placeholder={userPreBids[item.id] ? `מעל ${formatPrice(userPreBids[item.id])}` : 'סכום הצעה'}
+                            className="flex-1 bg-bg-elevated border border-border rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-accent transition-smooth"
+                            dir="ltr"
+                          />
+                          <button
+                            onClick={() => handlePreBid(item.id, item)}
+                            className="bg-accent hover:bg-accent-hover text-white px-3 py-2 rounded-xl text-sm font-semibold transition-smooth"
+                          >
+                            שלח
+                          </button>
+                          <button
+                            onClick={() => setPreBidItem(null)}
+                            className="bg-bg-elevated border border-border text-text-secondary px-3 py-2 rounded-xl text-sm transition-smooth"
+                          >
+                            ✗
+                          </button>
+                        </div>
+                      ) : (
                         <button
-                          onClick={() => handlePreBid(item.id, item)}
-                          className="btn-accent px-3 py-2 rounded-lg text-sm"
+                          onClick={() => { setPreBidItem(item.id); setPreBidAmount(''); }}
+                          className="w-full bg-bg-elevated hover:bg-bg-surface border border-border text-white py-2.5 rounded-xl text-sm font-medium transition-smooth"
                         >
-                          שלח
+                          {userPreBids[item.id] ? 'עדכן הצעה מוקדמת' : 'הצעה מוקדמת'}
                         </button>
-                        <button
-                          onClick={() => setPreBidItem(null)}
-                          className="btn-dark px-3 py-2 rounded-lg text-sm"
-                        >
-                          ✗
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => { setPreBidItem(item.id); setPreBidAmount(''); }}
-                        className="w-full btn-dark py-2 rounded-lg text-sm mt-2"
-                      >
-                        {userPreBids[item.id] ? 'עדכן הצעה מוקדמת' : 'הצעה מוקדמת'}
-                      </button>
-                    )}
-                  </>
-                )}
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           ))}

@@ -27,55 +27,44 @@ export default function AdminDashboard() {
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <StatCard label="סה&quot;כ מכרזים" value={auctions.length.toString()} />
+          <StatCard label='סה"כ מכרזים' value={auctions.length.toString()} />
           <StatCard label="חי עכשיו" value={liveCount.toString()} color="text-live-dot" />
           <StatCard label="מפורסמים" value={publishedCount.toString()} color="text-accent" />
           <StatCard label="הסתיימו" value={endedCount.toString()} />
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <Link href="/admin/auctions/new" className="glass rounded-xl p-6 hover:border-accent/30 transition-smooth border border-transparent text-center">
-            <div className="text-3xl mb-2">➕</div>
-            <div className="font-bold">צור מכרז חדש</div>
-          </Link>
-          <Link href="/admin/auctions" className="glass rounded-xl p-6 hover:border-accent/30 transition-smooth border border-transparent text-center">
-            <div className="text-3xl mb-2">📋</div>
-            <div className="font-bold">נהל מכרזים</div>
-          </Link>
-          <Link href="/admin/live" className="glass rounded-xl p-6 hover:border-accent/30 transition-smooth border border-transparent text-center">
-            <div className="text-3xl mb-2">🎛️</div>
-            <div className="font-bold">פאנל כרוז (לייב)</div>
-          </Link>
-          <Link href="/admin/registrations" className="glass rounded-xl p-6 hover:border-accent/30 transition-smooth border border-transparent text-center">
-            <div className="text-3xl mb-2">👥</div>
-            <div className="font-bold">ניהול נרשמים</div>
-          </Link>
-          <Link href="/admin/houses" className="glass rounded-xl p-6 hover:border-accent/30 transition-smooth border border-transparent text-center">
-            <div className="text-3xl mb-2">🏠</div>
-            <div className="font-bold">בתי מכירות ומשתמשים</div>
-          </Link>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
+          <QuickAction href="/admin/auctions/new" icon="+" label="צור מכרז חדש" />
+          <QuickAction href="/admin/auctions" icon="📋" label="נהל מכרזים" />
+          <QuickAction href="/admin/live" icon="🎛️" label="פאנל כרוז" />
+          <QuickAction href="/admin/registrations" icon="👥" label="ניהול נרשמים" />
+          <QuickAction href="/admin/houses" icon="🏠" label="בתי מכירות" />
         </div>
 
         {/* Recent Auctions */}
         <h2 className="text-lg font-bold mb-4">מכרזים אחרונים</h2>
-        <div className="space-y-2">
-          {auctions.slice(0, 10).map((auction) => (
-            <Link
-              key={auction.id}
-              href={`/admin/auctions/${auction.id}`}
-              className="glass rounded-lg p-4 flex items-center justify-between hover:border-accent/30 transition-smooth border border-transparent"
-            >
-              <div>
-                <div className="font-semibold">{auction.title}</div>
-                <div className="text-sm text-text-secondary">
-                  {auction.houseName} • {new Date(auction.scheduledAt).toLocaleDateString('he-IL')}
+        {auctions.length === 0 ? (
+          <div className="text-center py-12 text-text-secondary">אין מכרזים עדיין</div>
+        ) : (
+          <div className="space-y-2">
+            {auctions.slice(0, 10).map((auction) => (
+              <Link
+                key={auction.id}
+                href={`/admin/auctions/${auction.id}`}
+                className="glass rounded-xl p-4 flex items-center justify-between hover:border-accent/30 transition-smooth border border-transparent group"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold truncate group-hover:text-accent transition-smooth">{auction.title}</div>
+                  <div className="text-sm text-text-secondary truncate">
+                    {auction.houseName} • {new Date(auction.scheduledAt).toLocaleDateString('he-IL')}
+                  </div>
                 </div>
-              </div>
-              <AuctionStatusBadge status={auction.status} />
-            </Link>
-          ))}
-        </div>
+                <AuctionStatusBadge status={auction.status} />
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -83,9 +72,18 @@ export default function AdminDashboard() {
 
 function StatCard({ label, value, color = 'text-white' }: { label: string; value: string; color?: string }) {
   return (
-    <div className="glass rounded-xl p-4 text-center">
+    <div className="glass rounded-2xl p-5 text-center">
       <div className={`text-3xl font-black ${color}`}>{value}</div>
       <div className="text-sm text-text-secondary mt-1">{label}</div>
     </div>
+  );
+}
+
+function QuickAction({ href, icon, label }: { href: string; icon: string; label: string }) {
+  return (
+    <Link href={href} className="glass rounded-2xl p-5 hover:border-accent/30 transition-smooth border border-transparent text-center group">
+      <div className="text-2xl mb-2">{icon}</div>
+      <div className="font-semibold text-sm group-hover:text-accent transition-smooth">{label}</div>
+    </Link>
   );
 }
