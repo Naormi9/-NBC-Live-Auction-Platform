@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { ref, onValue, query, limitToLast, orderByChild, equalTo, get } from 'firebase/database';
 import { db } from './firebase';
 import { Auction, AuctionItem, BidHistoryEntry, ChatMessage } from './types';
@@ -227,21 +227,30 @@ export function useAllAuctions() {
 export function useAutoAdvance(auctionId: string | null, isAdmin: boolean) {
   const { auction } = useAuction(auctionId);
   const [processing, setProcessing] = useState(false);
+  const processingRef = useRef(false);
+  const lastTimerEndsAtRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!auctionId || !auction || !isAdmin || processing) return;
+    if (!auctionId || !auction || !isAdmin) return;
     if (auction.status !== 'live') return;
     if (auction.timerPaused) return;
     if (!auction.timerEndsAt) return;
 
+    // Dedup: skip if we already processed this exact timerEndsAt
+    if (lastTimerEndsAtRef.current === auction.timerEndsAt && processingRef.current) return;
+
     const remaining = auction.timerEndsAt - Date.now();
 
     const fireExpiry = () => {
+      if (processingRef.current) return;
+      processingRef.current = true;
+      lastTimerEndsAtRef.current = auction.timerEndsAt;
       setProcessing(true);
       import('./auction-actions').then(({ handleTimerExpiry }) => {
         handleTimerExpiry(auctionId).finally(() => {
           // Debounce to avoid firing again too quickly
           setTimeout(() => {
+            processingRef.current = false;
             setProcessing(false);
           }, 2000);
         });

@@ -4,6 +4,7 @@ export type UserRole = 'participant' | 'house_manager' | 'admin';
 export type ChatRole = 'user' | 'auctioneer' | 'system';
 export type RegistrationStatus = 'pending' | 'approved';
 export type VerificationStatus = 'pending_verification' | 'pending_approval' | 'approved' | 'rejected';
+export type WinnerPaymentStatus = 'pending' | 'paid' | 'cancelled';
 
 export interface RoundSettings {
   increment: number;
@@ -51,6 +52,9 @@ export interface AuctionItem {
   status: ItemStatus;
   soldAt: number | null;
   soldPrice: number | null;
+  winnerId: string | null;
+  winnerName: string | null;
+  winnerPaymentStatus: WinnerPaymentStatus | null;
   make: string;
   model: string;
   year: number;

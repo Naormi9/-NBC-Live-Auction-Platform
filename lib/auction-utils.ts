@@ -26,9 +26,15 @@ export function canPlaceBid(
     return { valid: false, error: 'אינך יכול להקפיץ מעל עצמך' };
   }
 
+  const increment = getIncrement(auction.settings, auction.currentRound);
   const minBid = getMinBid(item.currentBid, auction.settings, auction.currentRound);
   if (amount < minBid) {
     return { valid: false, error: `הצעה מינימלית: ₪${minBid.toLocaleString()}` };
+  }
+
+  // Validate increment alignment
+  if ((amount - item.currentBid) % increment !== 0) {
+    return { valid: false, error: 'הסכום לא מיושר למדרגת הקפיצה' };
   }
 
   return { valid: true };

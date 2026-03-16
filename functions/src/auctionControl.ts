@@ -20,7 +20,30 @@ function mergeSettings(settings: any) {
     round2: { ...DEFAULT_SETTINGS.round2, ...(settings?.round2 || {}) },
     round3: { ...DEFAULT_SETTINGS.round3, ...(settings?.round3 || {}) },
     hardCloseMinutes: settings?.hardCloseMinutes ?? DEFAULT_SETTINGS.hardCloseMinutes,
+    timerOverrideSeconds: settings?.timerOverrideSeconds ?? null,
   };
+}
+
+function getTimerSeconds(settings: ReturnType<typeof mergeSettings>, roundKey: 'round1' | 'round2' | 'round3'): number {
+  if (settings.timerOverrideSeconds && settings.timerOverrideSeconds > 0) {
+    return settings.timerOverrideSeconds;
+  }
+  return settings[roundKey].timerSeconds;
+}
+
+async function findHighestPreBidder(auctionId: string, itemId: string): Promise<{ uid: string; name: string } | null> {
+  const preBidsSnap = await db.ref(`/pre_bids/${auctionId}/${itemId}`).once('value');
+  if (!preBidsSnap.exists()) return null;
+  const preBids = preBidsSnap.val();
+  let maxAmount = 0;
+  let winner: { uid: string; name: string } | null = null;
+  for (const [uid, bid] of Object.entries(preBids) as [string, any][]) {
+    if (bid.amount > maxAmount) {
+      maxAmount = bid.amount;
+      winner = { uid, name: bid.userDisplayName || 'משתתף' };
+    }
+  }
+  return winner;
 }
 
 // ─── CORS + Auth helpers ────────────────────────────────────
@@ -109,19 +132,25 @@ async function advanceToNextItem(auctionId: string, settings: any) {
   }
 
   const nextItem = pendingItems[0] as any;
+
+  // Credit pre-bidder if exists
+  const preBidder = await findHighestPreBidder(auctionId, nextItem.id);
+
   await db.ref(`/auction_items/${nextItem.id}`).update({
     status: 'active',
     currentBid: nextItem.preBidPrice || nextItem.openingPrice || 0,
-    currentBidderId: null,
-    currentBidderName: null,
+    currentBidderId: preBidder?.uid || null,
+    currentBidderName: preBidder?.name || null,
   });
+  const timerSec = getTimerSeconds(settings, 'round1');
   await db.ref(`/auctions/${auctionId}`).update({
     currentItemId: nextItem.id,
     currentRound: 1,
     round1Resets: 0,
     itemStartedAt: now,
-    timerEndsAt: now + settings.round1.timerSeconds * 1000,
-    timerDuration: settings.round1.timerSeconds,
+    timerEndsAt: now + timerSec * 1000,
+    timerDuration: timerSec,
+    timerPaused: false,
   });
   await db.ref(`/live_chat/${auctionId}`).push({
     senderId: 'system', senderName: 'מערכת', senderRole: 'system',
@@ -172,21 +201,26 @@ export const startAuctionLive = functions.region('europe-west1').https.onRequest
     const firstItem = items[0] as any;
     const now = Date.now();
 
+    // Credit pre-bidder if exists
+    const preBidder = await findHighestPreBidder(auctionId, firstItem.id);
+
     await db.ref(`/auction_items/${firstItem.id}`).update({
       status: 'active',
       currentBid: firstItem.preBidPrice || firstItem.openingPrice || 0,
-      currentBidderId: null,
-      currentBidderName: null,
+      currentBidderId: preBidder?.uid || null,
+      currentBidderName: preBidder?.name || null,
     });
 
+    const timerSec = getTimerSeconds(settings, 'round1');
     await auctionRef.update({
       status: 'live',
       currentItemId: firstItem.id,
       currentRound: 1,
       round1Resets: 0,
       itemStartedAt: now,
-      timerEndsAt: now + settings.round1.timerSeconds * 1000,
-      timerDuration: settings.round1.timerSeconds,
+      timerEndsAt: now + timerSec * 1000,
+      timerDuration: timerSec,
+      timerPaused: false,
       settings,
     });
 
@@ -227,18 +261,25 @@ export const activateFirstItem = functions.region('europe-west1').https.onReques
     const firstItem = pendingItems[0] as any;
     const now = Date.now();
 
+    // Credit pre-bidder if exists
+    const preBidder = await findHighestPreBidder(auctionId, firstItem.id);
+
     await db.ref(`/auction_items/${firstItem.id}`).update({
       status: 'active',
       currentBid: firstItem.preBidPrice || firstItem.openingPrice || 0,
+      currentBidderId: preBidder?.uid || null,
+      currentBidderName: preBidder?.name || null,
     });
 
+    const timerSec = getTimerSeconds(auction.settings, 'round1');
     await db.ref(`/auctions/${auctionId}`).update({
       currentItemId: firstItem.id,
       currentRound: 1,
       round1Resets: 0,
       itemStartedAt: now,
-      timerEndsAt: now + auction.settings.round1.timerSeconds * 1000,
-      timerDuration: auction.settings.round1.timerSeconds,
+      timerEndsAt: now + timerSec * 1000,
+      timerDuration: timerSec,
+      timerPaused: false,
     });
 
     await db.ref(`/live_chat/${auctionId}`).push({
@@ -268,11 +309,13 @@ export const advanceAuctionRound = functions.region('europe-west1').https.onRequ
     const nextRound = (auction.currentRound + 1) as 2 | 3;
     const roundKey = `round${nextRound}` as 'round2' | 'round3';
     const now = Date.now();
+    const timerSec = getTimerSeconds(auction.settings, roundKey);
 
     await db.ref(`/auctions/${auctionId}`).update({
       currentRound: nextRound,
-      timerEndsAt: now + auction.settings[roundKey].timerSeconds * 1000,
-      timerDuration: auction.settings[roundKey].timerSeconds,
+      timerEndsAt: now + timerSec * 1000,
+      timerDuration: timerSec,
+      timerPaused: false,
     });
 
     await db.ref(`/live_chat/${auctionId}`).push({
@@ -306,11 +349,15 @@ export const closeItemAndAdvance = functions.region('europe-west1').https.onRequ
     if (!item) return sendError(res, 404, 'Current item not found');
 
     if (item.status !== 'sold' && item.status !== 'unsold') {
-      const isSold = !!markAsSold && item.currentBid > 0;
+      const hasBidder = !!item.currentBidderId;
+      const isSold = !!markAsSold && item.currentBid > 0 && hasBidder;
       const itemUpdate: Record<string, any> = { status: isSold ? 'sold' : 'unsold' };
       if (isSold) {
         itemUpdate.soldAt = admin.database.ServerValue.TIMESTAMP;
         itemUpdate.soldPrice = item.currentBid;
+        itemUpdate.winnerId = item.currentBidderId;
+        itemUpdate.winnerName = item.currentBidderName;
+        itemUpdate.winnerPaymentStatus = 'pending';
       }
       await itemRef.update(itemUpdate);
 
@@ -343,14 +390,32 @@ export const adjustAuctionTimer = functions.region('europe-west1').https.onReque
     const now = Date.now();
 
     if (action === 'pause') {
-      await db.ref(`/auctions/${auctionId}`).update({ timerEndsAt: now + 999999000 });
+      const remaining = Math.max(0, ((auction.timerEndsAt || now) - now) / 1000);
+      await db.ref(`/auctions/${auctionId}`).update({
+        timerPaused: true,
+        remainingOnPause: remaining,
+      });
       return sendOk(res, { action: 'paused' });
     }
 
+    if (action === 'resume') {
+      const remaining = auction.remainingOnPause || 30;
+      await db.ref(`/auctions/${auctionId}`).update({
+        timerPaused: false,
+        timerEndsAt: now + remaining * 1000,
+      });
+      return sendOk(res, { action: 'resumed' });
+    }
+
     if (action === 'add' && typeof seconds === 'number' && seconds > 0 && seconds <= 3600) {
-      const currentEnd = auction.timerEndsAt || now;
-      const newEnd = Math.max(currentEnd, now) + seconds * 1000;
-      await db.ref(`/auctions/${auctionId}`).update({ timerEndsAt: newEnd });
+      if (auction.timerPaused) {
+        const remaining = (auction.remainingOnPause || 0) + seconds;
+        await db.ref(`/auctions/${auctionId}`).update({ remainingOnPause: remaining });
+      } else {
+        const currentEnd = auction.timerEndsAt || now;
+        const newEnd = Math.max(currentEnd, now) + seconds * 1000;
+        await db.ref(`/auctions/${auctionId}`).update({ timerEndsAt: newEnd });
+      }
       return sendOk(res, { action: 'added', seconds });
     }
 

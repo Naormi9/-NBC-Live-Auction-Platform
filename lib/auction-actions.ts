@@ -85,12 +85,30 @@ export async function startAuctionLive(auctionId: string): Promise<string> {
   const firstItem = items[0] as any;
   const now = Date.now();
 
-  // Activate first item
+  // Check for pre-bidder on first item
+  let preBidderId: string | null = null;
+  let preBidderName: string | null = null;
+  if (firstItem.preBidPrice && firstItem.preBidPrice > 0) {
+    const preBidsSnap = await get(ref(db, `pre_bids/${auctionId}/${firstItem.id}`));
+    if (preBidsSnap.exists()) {
+      const preBids = preBidsSnap.val();
+      let maxAmount = 0;
+      for (const [uid, bid] of Object.entries(preBids) as [string, any][]) {
+        if (bid.amount > maxAmount) {
+          maxAmount = bid.amount;
+          preBidderId = uid;
+          preBidderName = bid.userDisplayName || null;
+        }
+      }
+    }
+  }
+
+  // Activate first item (credit pre-bidder if exists)
   await update(ref(db, `auction_items/${firstItem.id}`), {
     status: 'active',
     currentBid: firstItem.preBidPrice || firstItem.openingPrice || 0,
-    currentBidderId: null,
-    currentBidderName: null,
+    currentBidderId: preBidderId,
+    currentBidderName: preBidderName,
   });
 
   // Set auction to live
@@ -122,11 +140,29 @@ export async function activateNextItem(auctionId: string): Promise<string> {
   const nextItem = pendingItems[0] as any;
   const now = Date.now();
 
+  // Check for pre-bidder
+  let preBidderId: string | null = null;
+  let preBidderName: string | null = null;
+  if (nextItem.preBidPrice && nextItem.preBidPrice > 0) {
+    const preBidsSnap = await get(ref(db, `pre_bids/${auctionId}/${nextItem.id}`));
+    if (preBidsSnap.exists()) {
+      const preBids = preBidsSnap.val();
+      let maxAmount = 0;
+      for (const [uid, bid] of Object.entries(preBids) as [string, any][]) {
+        if (bid.amount > maxAmount) {
+          maxAmount = bid.amount;
+          preBidderId = uid;
+          preBidderName = bid.userDisplayName || null;
+        }
+      }
+    }
+  }
+
   await update(ref(db, `auction_items/${nextItem.id}`), {
     status: 'active',
     currentBid: nextItem.preBidPrice || nextItem.openingPrice || 0,
-    currentBidderId: null,
-    currentBidderName: null,
+    currentBidderId: preBidderId,
+    currentBidderName: preBidderName,
   });
 
   await update(ref(db, `auctions/${auctionId}`), {
@@ -136,6 +172,7 @@ export async function activateNextItem(auctionId: string): Promise<string> {
     itemStartedAt: now,
     timerEndsAt: now + getTimerSeconds(settings, 'round1') * 1000,
     timerDuration: getTimerSeconds(settings, 'round1'),
+    timerPaused: false,
   });
 
   await chatMsg(auctionId, `הפריט "${nextItem.title}" עלה לבמה!`);
@@ -161,6 +198,7 @@ export async function advanceRound(auctionId: string): Promise<string> {
     currentRound: nextRound,
     timerEndsAt: now + timerSec * 1000,
     timerDuration: timerSec,
+    timerPaused: false,
   });
 
   await chatMsg(auctionId, `עוברים לסיבוב ${nextRound} — מדרגת קפיצה: ₪${settings[roundKey].increment.toLocaleString()}`);
@@ -182,12 +220,16 @@ export async function closeItemAndAdvance(auctionId: string, markAsSold: boolean
 
   // Close current item
   if (item.status === 'active') {
-    const isSold = markAsSold && item.currentBid > 0 && item.currentBidderId;
+    const hasBidder = !!item.currentBidderId;
+    const isSold = markAsSold && item.currentBid > 0 && hasBidder;
     if (isSold) {
       await update(ref(db, `auction_items/${currentItemId}`), {
         status: 'sold',
         soldAt: serverTimestamp(),
         soldPrice: item.currentBid,
+        winnerId: item.currentBidderId,
+        winnerName: item.currentBidderName,
+        winnerPaymentStatus: 'pending',
       });
       await chatMsg(auctionId, `הפריט "${item.title}" נמכר ב-₪${item.currentBid.toLocaleString()} ל-${item.currentBidderName}!`);
     } else {
@@ -209,11 +251,29 @@ export async function closeItemAndAdvance(auctionId: string, markAsSold: boolean
   const nextItem = pendingItems[0] as any;
   const now = Date.now();
 
+  // Check for pre-bidder on next item
+  let nextPreBidderId: string | null = null;
+  let nextPreBidderName: string | null = null;
+  if (nextItem.preBidPrice && nextItem.preBidPrice > 0) {
+    const preBidsSnap = await get(ref(db, `pre_bids/${auctionId}/${nextItem.id}`));
+    if (preBidsSnap.exists()) {
+      const preBids = preBidsSnap.val();
+      let maxAmount = 0;
+      for (const [uid, bid] of Object.entries(preBids) as [string, any][]) {
+        if (bid.amount > maxAmount) {
+          maxAmount = bid.amount;
+          nextPreBidderId = uid;
+          nextPreBidderName = bid.userDisplayName || null;
+        }
+      }
+    }
+  }
+
   await update(ref(db, `auction_items/${nextItem.id}`), {
     status: 'active',
     currentBid: nextItem.preBidPrice || nextItem.openingPrice || 0,
-    currentBidderId: null,
-    currentBidderName: null,
+    currentBidderId: nextPreBidderId,
+    currentBidderName: nextPreBidderName,
   });
 
   const timerSec = getTimerSeconds(settings, 'round1');
@@ -224,6 +284,7 @@ export async function closeItemAndAdvance(auctionId: string, markAsSold: boolean
     itemStartedAt: now,
     timerEndsAt: now + timerSec * 1000,
     timerDuration: timerSec,
+    timerPaused: false,
   });
 
   await chatMsg(auctionId, `הפריט "${nextItem.title}" עלה לבמה!`);
@@ -274,7 +335,11 @@ export async function addTime(auctionId: string, seconds: number): Promise<strin
   return `נוספו ${seconds} שניות`;
 }
 
-// ─── Submit Bid (client-side processing) ────────────────────
+// ─── Submit Bid (via pending_bids → processBid Cloud Function) ──
+// Client writes to pending_bids (allowed by RTDB rules for approved users).
+// The processBid Cloud Function picks it up, validates atomically via
+// transaction, updates auction_items + bid_history + live_chat with admin
+// privileges, then removes the pending bid.
 export async function submitBid(
   auctionId: string,
   itemId: string,
@@ -283,9 +348,11 @@ export async function submitBid(
   amount: number,
   round: 1 | 2 | 3
 ): Promise<string> {
+  // Client-side pre-validation (CF does authoritative validation)
   const auctionSnap = await get(ref(db, `auctions/${auctionId}`));
   const auction = auctionSnap.val();
   if (!auction || auction.status !== 'live') throw new Error('המכרז לא חי');
+  if (auction.timerPaused) throw new Error('הטיימר מושהה — לא ניתן להציע כרגע');
 
   const itemSnap = await get(ref(db, `auction_items/${itemId}`));
   const item = itemSnap.val();
@@ -294,30 +361,16 @@ export async function submitBid(
   const settings = mergeSettings(auction.settings);
   const roundKey = `round${round}` as 'round1' | 'round2' | 'round3';
   const increment = settings[roundKey].increment;
-  const timerDuration = getTimerSeconds(settings, roundKey);
 
   const minBid = item.currentBid + increment;
   if (amount < minBid) throw new Error(`הצעה מינימלית: ₪${minBid.toLocaleString()}`);
   if ((amount - item.currentBid) % increment !== 0) throw new Error('הסכום לא מיושר למדרגת הקפיצה');
   if (userId === item.currentBidderId) throw new Error('אינך יכול להקפיץ מעל עצמך');
 
-  // Update item with new bid
-  const updates: Record<string, any> = {};
-  updates[`auction_items/${itemId}/currentBid`] = amount;
-  updates[`auction_items/${itemId}/currentBidderId`] = userId;
-  updates[`auction_items/${itemId}/currentBidderName`] = userDisplayName;
-
-  // Reset timer on successful bid
-  const now = Date.now();
-  updates[`auctions/${auctionId}/timerEndsAt`] = now + timerDuration * 1000;
-  updates[`auctions/${auctionId}/timerDuration`] = timerDuration;
-  updates[`auctions/${auctionId}/timerPaused`] = false;
-  updates[`auctions/${auctionId}/round1Resets`] = 0;
-
-  await update(ref(db), updates);
-
-  // Write to bid history
-  await push(ref(db, `bid_history/${auctionId}/${itemId}`), {
+  // Write to pending_bids — processBid CF handles the rest
+  await push(ref(db, 'pending_bids'), {
+    auctionId,
+    itemId,
     userId,
     userDisplayName,
     amount,
@@ -325,10 +378,7 @@ export async function submitBid(
     timestamp: serverTimestamp(),
   });
 
-  // Chat message
-  await chatMsg(auctionId, `הצעה התקבלה: ₪${amount.toLocaleString()} מ-${userDisplayName}`);
-
-  return 'ההצעה התקבלה!';
+  return 'ההצעה נשלחה!';
 }
 
 // ─── Update Live Settings ───────────────────────────────────
@@ -383,7 +433,15 @@ export async function handleTimerExpiry(auctionId: string): Promise<string> {
   const hardCloseMs = settings.hardCloseMinutes * 60 * 1000;
   const itemStartedAt = auction.itemStartedAt || 0;
   if (itemStartedAt > 0 && (now - itemStartedAt) > hardCloseMs) {
-    return closeItemAndAdvance(auctionId, true);
+    // Hard close: only mark as sold if there's an actual bidder
+    const currentItemId = auction.currentItemId;
+    if (currentItemId) {
+      const hcItemSnap = await get(ref(db, `auction_items/${currentItemId}`));
+      const hcItem = hcItemSnap.val();
+      const hasBidder = hcItem && !!hcItem.currentBidderId;
+      return closeItemAndAdvance(auctionId, hasBidder);
+    }
+    return closeItemAndAdvance(auctionId, false);
   }
 
   if (currentRound === 1) {

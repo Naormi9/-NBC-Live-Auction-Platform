@@ -44,6 +44,7 @@ export const timerTick = functions.region('europe-west1').pubsub
       try {
       const auction = auctionData as any;
 
+      if (auction.timerPaused) continue;
       if (!auction.timerEndsAt || auction.timerEndsAt > now) continue;
       if (!auction.currentItemId) continue;
 
@@ -138,6 +139,9 @@ async function closeItemAndAdvance(auctionId: string, auction: any, settings: an
       status: 'sold',
       soldAt: admin.database.ServerValue.TIMESTAMP,
       soldPrice: item.currentBid,
+      winnerId: item.currentBidderId,
+      winnerName: item.currentBidderName,
+      winnerPaymentStatus: 'pending',
     });
     await db.ref(`/live_chat/${auctionId}`).push({
       senderId: 'system',
@@ -186,11 +190,30 @@ async function closeItemAndAdvance(auctionId: string, auction: any, settings: an
     await lockRef.remove();
   } else {
     const nextItem = pendingItems[0] as any;
+
+    // Credit pre-bidder if exists
+    let preBidderId: string | null = null;
+    let preBidderName: string | null = null;
+    if (nextItem.preBidPrice && nextItem.preBidPrice > 0) {
+      const preBidsSnap = await db.ref(`/pre_bids/${auctionId}/${nextItem.id}`).once('value');
+      if (preBidsSnap.exists()) {
+        const preBids = preBidsSnap.val();
+        let maxAmount = 0;
+        for (const [uid, bid] of Object.entries(preBids) as [string, any][]) {
+          if (bid.amount > maxAmount) {
+            maxAmount = bid.amount;
+            preBidderId = uid;
+            preBidderName = bid.userDisplayName || null;
+          }
+        }
+      }
+    }
+
     await db.ref(`/auction_items/${nextItem.id}`).update({
       status: 'active',
       currentBid: nextItem.preBidPrice || nextItem.openingPrice || 0,
-      currentBidderId: null,
-      currentBidderName: null,
+      currentBidderId: preBidderId,
+      currentBidderName: preBidderName,
     });
     const timerSec = getTimerSeconds(settings, 'round1');
     await db.ref(`/auctions/${auctionId}`).update({
@@ -200,6 +223,7 @@ async function closeItemAndAdvance(auctionId: string, auction: any, settings: an
       itemStartedAt: now,
       timerEndsAt: now + timerSec * 1000,
       timerDuration: timerSec,
+      timerPaused: false,
     });
     await db.ref(`/live_chat/${auctionId}`).push({
       senderId: 'system',

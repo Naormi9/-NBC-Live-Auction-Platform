@@ -9,6 +9,13 @@ const DEFAULT_SETTINGS = {
   round3: { increment: 250, timerSeconds: 30 },
 };
 
+function getTimerSecondsForBid(auction: any, roundKey: 'round1' | 'round2' | 'round3'): number {
+  const override = auction.settings?.timerOverrideSeconds;
+  if (override && override > 0) return override;
+  const roundSettings = auction.settings?.[roundKey] || DEFAULT_SETTINGS[roundKey];
+  return roundSettings.timerSeconds;
+}
+
 export const processBid = functions.region('europe-west1').database
   .ref('/pending_bids/{bidId}')
   .onCreate(async (snapshot, context) => {
@@ -44,11 +51,26 @@ export const processBid = functions.region('europe-west1').database
       return;
     }
 
+    // Reject bids when timer is paused
+    if (auction.timerPaused) {
+      console.warn(`Rejected bid during paused timer: ${bid.userId}`);
+      await snapshot.ref.remove();
+      return;
+    }
+
+    // Verify user is registered for this auction
+    const regSnap = await db.ref(`/registrations/${bid.auctionId}/${bid.userId}`).once('value');
+    if (!regSnap.exists()) {
+      console.warn(`Rejected bid from unregistered user: ${bid.userId}`);
+      await snapshot.ref.remove();
+      return;
+    }
+
     const round = auction.currentRound as 1 | 2 | 3;
     const roundKey = `round${round}` as 'round1' | 'round2' | 'round3';
     const roundSettings = auction.settings?.[roundKey] || DEFAULT_SETTINGS[roundKey];
     const increment = roundSettings.increment;
-    const timerDuration = roundSettings.timerSeconds;
+    const timerDuration = getTimerSecondsForBid(auction, roundKey);
 
     // Transaction to update item
     const result = await itemRef.transaction((item) => {
@@ -80,6 +102,7 @@ export const processBid = functions.region('europe-west1').database
         await auctionRef.update({
           timerEndsAt: Date.now() + timerDuration * 1000,
           timerDuration: timerDuration,
+          timerPaused: false,
           // Reset round1Resets counter since a bid came in
           round1Resets: 0,
         });

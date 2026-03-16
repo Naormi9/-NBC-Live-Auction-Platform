@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { formatPrice, getMinBid, canPlaceBid } from '@/lib/auction-utils';
 import { submitBid } from '@/lib/auction-actions';
@@ -17,6 +17,8 @@ interface BidButtonProps {
 export default function BidButton({ auction, item, registered }: BidButtonProps) {
   const { user, profile } = useAuth();
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const lastBidRef = useRef<string | null>(null);
 
   if (!user) {
     return (
@@ -61,7 +63,11 @@ export default function BidButton({ auction, item, registered }: BidButtonProps)
   const nextBid = getMinBid(item.currentBid, auction.settings, auction.currentRound);
 
   const handleBid = async () => {
-    if (submitting) return;
+    if (submitting || submittingRef.current) return;
+
+    // Dedup: prevent same bid amount on same item
+    const bidKey = `${item.id}-${nextBid}`;
+    if (lastBidRef.current === bidKey) return;
 
     const validation = canPlaceBid(user.uid, item, auction, nextBid);
     if (!validation.valid) {
@@ -69,6 +75,8 @@ export default function BidButton({ auction, item, registered }: BidButtonProps)
       return;
     }
 
+    submittingRef.current = true;
+    lastBidRef.current = bidKey;
     setSubmitting(true);
     try {
       await submitBid(
@@ -82,8 +90,11 @@ export default function BidButton({ auction, item, registered }: BidButtonProps)
       playBidSound();
       toast.success(`הצעה של ${formatPrice(nextBid)} נשלחה!`);
     } catch (err: any) {
+      // On error, allow retry
+      lastBidRef.current = null;
       toast.error(err.message || 'שגיאה בשליחת ההצעה');
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
