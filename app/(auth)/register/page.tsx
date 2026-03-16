@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { ref, update, serverTimestamp } from 'firebase/database';
 import { auth, db } from '@/lib/firebase';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { LogoIcon } from '@/components/ui/Logo';
@@ -21,6 +21,8 @@ export default function RegisterPage() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get('redirect');
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,8 +62,8 @@ export default function RegisterPage() {
         signatureData,
         callbackRequested: false,
       });
-      toast.success('נרשמת בהצלחה! כעת יש לאמת את החשבון');
-      router.push('/verify');
+      toast.success('נרשמת בהצלחה! כעת יש לאמת את החשבון', { id: 'register-success' });
+      router.push(redirect ? `/verify?redirect=${encodeURIComponent(redirect)}` : '/verify');
     } catch (err: any) {
       if (err.code === 'auth/email-already-in-use') {
         toast.error('האימייל כבר רשום במערכת');
@@ -154,23 +156,34 @@ export default function RegisterPage() {
             />
           </div>
 
-          <SignaturePad onSignatureChange={setSignatureData} />
-
-          <div className="flex items-start gap-3 pt-2">
-            <input
-              type="checkbox"
-              id="terms"
-              checked={termsAccepted}
-              onChange={(e) => setTermsAccepted(e.target.checked)}
-              className="mt-1 accent-accent w-4 h-4 flex-shrink-0"
-            />
-            <label htmlFor="terms" className="text-sm text-text-secondary">
-              קראתי ואני מסכים/ה ל
-              <Link href="/terms" target="_blank" className="text-accent hover:underline mx-1">
+          {/* Terms acceptance section with digital signature */}
+          <div className="border border-accent/30 rounded-xl p-4 space-y-3 bg-accent/5">
+            <h3 className="text-sm font-bold text-white">אישור תנאי השתתפות במכרז</h3>
+            <p className="text-xs text-text-secondary leading-relaxed">
+              בחתימתי למטה אני מאשר/ת שקראתי והבנתי את{' '}
+              <Link href="/terms" target="_blank" className="text-accent hover:underline">
                 תקנון המכרז
-              </Link>
-              ולתנאי השימוש
-            </label>
+              </Link>{' '}
+              ואת תנאי השימוש. אני מתחייב/ת לעמוד בתנאי ההשתתפות, לרבות תשלום מלא במקרה של זכייה. ידוע לי כי אי-תשלום יגרור חילוט ערבות, חסימה מהשתתפות עתידית, ונקיטת הליכים משפטיים. חתימה זו מהווה הסכמה משפטית מחייבת.
+            </p>
+
+            <div className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                id="terms"
+                checked={termsAccepted}
+                onChange={(e) => setTermsAccepted(e.target.checked)}
+                className="mt-1 accent-accent w-4 h-4 flex-shrink-0"
+              />
+              <label htmlFor="terms" className="text-sm text-text-secondary">
+                קראתי ואני מסכים/ה לתקנון המכרז ולתנאי השימוש
+              </label>
+            </div>
+
+            <SignaturePad onSignatureChange={setSignatureData} />
+            <p className="text-xs text-text-secondary/60 text-center">
+              החתימה למעלה מהווה אישור דיגיטלי להשתתפותך במכרז
+            </p>
           </div>
 
           <button

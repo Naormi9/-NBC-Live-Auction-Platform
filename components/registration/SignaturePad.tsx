@@ -105,7 +105,7 @@ export default function SignaturePad({ onSignatureChange, width = 400, height = 
 
   return (
     <div className="space-y-2">
-      <label className="block text-sm text-text-secondary mb-1">חתימה דיגיטלית</label>
+      <label className="block text-sm text-text-secondary mb-1">חתימה דיגיטלית — אישור תנאי השתתפות</label>
       <div className="relative border border-border rounded-lg overflow-hidden" style={{ touchAction: 'none' }}>
         <canvas
           ref={canvasRef}

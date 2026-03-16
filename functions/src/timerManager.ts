@@ -80,6 +80,7 @@ export const timerTick = functions.region('europe-west1').pubsub
           await db.ref(`/auctions/${auctionId}`).update({
             round1Resets: round1Resets + 1,
             timerEndsAt: now + getTimerSeconds(settings, 'round1') * 1000,
+            timerPaused: false,
           });
           await db.ref(`/live_chat/${auctionId}`).push({
             senderId: 'system',
@@ -114,6 +115,7 @@ async function advanceRound(auctionId: string, nextRound: 2 | 3, settings: any) 
     currentRound: nextRound,
     timerEndsAt: now + timerSeconds * 1000,
     timerDuration: timerSeconds,
+    timerPaused: false,
   });
 
   await db.ref(`/live_chat/${auctionId}`).push({
@@ -190,25 +192,25 @@ async function closeItemAndAdvance(auctionId: string, auction: any, settings: an
     await lockRef.remove();
   } else {
     const nextItem = pendingItems[0] as any;
-
-    // Credit pre-bidder if exists
+    // Credit highest pre-bidder if exists
     let preBidderId: string | null = null;
     let preBidderName: string | null = null;
-    if (nextItem.preBidPrice && nextItem.preBidPrice > 0) {
+    if (nextItem.preBidPrice) {
       const preBidsSnap = await db.ref(`/pre_bids/${auctionId}/${nextItem.id}`).once('value');
       if (preBidsSnap.exists()) {
-        const preBids = preBidsSnap.val();
-        let maxAmount = 0;
-        for (const [uid, bid] of Object.entries(preBids) as [string, any][]) {
-          if (bid.amount > maxAmount) {
-            maxAmount = bid.amount;
-            preBidderId = uid;
-            preBidderName = bid.userDisplayName || null;
+        const bids = preBidsSnap.val();
+        let highest: { userId: string; name: string; amount: number } | null = null;
+        for (const bid of Object.values(bids) as any[]) {
+          if (bid && typeof bid.amount === 'number' && (!highest || bid.amount > highest.amount)) {
+            highest = { userId: bid.userId, name: bid.userDisplayName || 'משתתף', amount: bid.amount };
           }
+        }
+        if (highest) {
+          preBidderId = highest.userId;
+          preBidderName = highest.name;
         }
       }
     }
-
     await db.ref(`/auction_items/${nextItem.id}`).update({
       status: 'active',
       currentBid: nextItem.preBidPrice || nextItem.openingPrice || 0,

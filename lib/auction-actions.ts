@@ -52,6 +52,20 @@ async function getPendingItems(auctionId: string) {
     .sort((a: any, b: any) => a.order - b.order);
 }
 
+/** Find the highest pre-bidder for an item to credit them when going live */
+async function getHighestPreBidder(auctionId: string, itemId: string): Promise<{ userId: string; displayName: string; amount: number } | null> {
+  const preBidsSnap = await get(ref(db, `pre_bids/${auctionId}/${itemId}`));
+  if (!preBidsSnap.exists()) return null;
+  const bids = preBidsSnap.val();
+  let highest: { userId: string; displayName: string; amount: number } | null = null;
+  for (const [, bid] of Object.entries(bids) as [string, any][]) {
+    if (bid && typeof bid.amount === 'number' && (!highest || bid.amount > highest.amount)) {
+      highest = { userId: bid.userId, displayName: bid.userDisplayName || 'משתתף', amount: bid.amount };
+    }
+  }
+  return highest;
+}
+
 // ─── Start Auction Live ─────────────────────────────────────
 export async function startAuctionLive(auctionId: string): Promise<string> {
   // Check auction exists and is startable
@@ -85,30 +99,13 @@ export async function startAuctionLive(auctionId: string): Promise<string> {
   const firstItem = items[0] as any;
   const now = Date.now();
 
-  // Check for pre-bidder on first item
-  let preBidderId: string | null = null;
-  let preBidderName: string | null = null;
-  if (firstItem.preBidPrice && firstItem.preBidPrice > 0) {
-    const preBidsSnap = await get(ref(db, `pre_bids/${auctionId}/${firstItem.id}`));
-    if (preBidsSnap.exists()) {
-      const preBids = preBidsSnap.val();
-      let maxAmount = 0;
-      for (const [uid, bid] of Object.entries(preBids) as [string, any][]) {
-        if (bid.amount > maxAmount) {
-          maxAmount = bid.amount;
-          preBidderId = uid;
-          preBidderName = bid.userDisplayName || null;
-        }
-      }
-    }
-  }
-
-  // Activate first item (credit pre-bidder if exists)
+  // Activate first item — credit highest pre-bidder if exists
+  const preBidder = firstItem.preBidPrice ? await getHighestPreBidder(auctionId, firstItem.id) : null;
   await update(ref(db, `auction_items/${firstItem.id}`), {
     status: 'active',
     currentBid: firstItem.preBidPrice || firstItem.openingPrice || 0,
-    currentBidderId: preBidderId,
-    currentBidderName: preBidderName,
+    currentBidderId: preBidder?.userId || null,
+    currentBidderName: preBidder?.displayName || null,
   });
 
   // Set auction to live
@@ -120,6 +117,7 @@ export async function startAuctionLive(auctionId: string): Promise<string> {
     itemStartedAt: now,
     timerEndsAt: now + getTimerSeconds(settings, 'round1') * 1000,
     timerDuration: getTimerSeconds(settings, 'round1'),
+    timerPaused: false,
     settings,
   });
 
@@ -140,29 +138,13 @@ export async function activateNextItem(auctionId: string): Promise<string> {
   const nextItem = pendingItems[0] as any;
   const now = Date.now();
 
-  // Check for pre-bidder
-  let preBidderId: string | null = null;
-  let preBidderName: string | null = null;
-  if (nextItem.preBidPrice && nextItem.preBidPrice > 0) {
-    const preBidsSnap = await get(ref(db, `pre_bids/${auctionId}/${nextItem.id}`));
-    if (preBidsSnap.exists()) {
-      const preBids = preBidsSnap.val();
-      let maxAmount = 0;
-      for (const [uid, bid] of Object.entries(preBids) as [string, any][]) {
-        if (bid.amount > maxAmount) {
-          maxAmount = bid.amount;
-          preBidderId = uid;
-          preBidderName = bid.userDisplayName || null;
-        }
-      }
-    }
-  }
-
+  // Credit highest pre-bidder if exists
+  const preBidder = nextItem.preBidPrice ? await getHighestPreBidder(auctionId, nextItem.id) : null;
   await update(ref(db, `auction_items/${nextItem.id}`), {
     status: 'active',
     currentBid: nextItem.preBidPrice || nextItem.openingPrice || 0,
-    currentBidderId: preBidderId,
-    currentBidderName: preBidderName,
+    currentBidderId: preBidder?.userId || null,
+    currentBidderName: preBidder?.displayName || null,
   });
 
   await update(ref(db, `auctions/${auctionId}`), {
@@ -251,29 +233,13 @@ export async function closeItemAndAdvance(auctionId: string, markAsSold: boolean
   const nextItem = pendingItems[0] as any;
   const now = Date.now();
 
-  // Check for pre-bidder on next item
-  let nextPreBidderId: string | null = null;
-  let nextPreBidderName: string | null = null;
-  if (nextItem.preBidPrice && nextItem.preBidPrice > 0) {
-    const preBidsSnap = await get(ref(db, `pre_bids/${auctionId}/${nextItem.id}`));
-    if (preBidsSnap.exists()) {
-      const preBids = preBidsSnap.val();
-      let maxAmount = 0;
-      for (const [uid, bid] of Object.entries(preBids) as [string, any][]) {
-        if (bid.amount > maxAmount) {
-          maxAmount = bid.amount;
-          nextPreBidderId = uid;
-          nextPreBidderName = bid.userDisplayName || null;
-        }
-      }
-    }
-  }
-
+  // Credit highest pre-bidder if exists
+  const nextPreBidder = nextItem.preBidPrice ? await getHighestPreBidder(auctionId, nextItem.id) : null;
   await update(ref(db, `auction_items/${nextItem.id}`), {
     status: 'active',
     currentBid: nextItem.preBidPrice || nextItem.openingPrice || 0,
-    currentBidderId: nextPreBidderId,
-    currentBidderName: nextPreBidderName,
+    currentBidderId: nextPreBidder?.userId || null,
+    currentBidderName: nextPreBidder?.displayName || null,
   });
 
   const timerSec = getTimerSeconds(settings, 'round1');
@@ -335,11 +301,9 @@ export async function addTime(auctionId: string, seconds: number): Promise<strin
   return `נוספו ${seconds} שניות`;
 }
 
-// ─── Submit Bid (via pending_bids → processBid Cloud Function) ──
-// Client writes to pending_bids (allowed by RTDB rules for approved users).
-// The processBid Cloud Function picks it up, validates atomically via
-// transaction, updates auction_items + bid_history + live_chat with admin
-// privileges, then removes the pending bid.
+// ─── Submit Bid (via pending_bids for Cloud Function processing) ──
+// Writes to /pending_bids which participants CAN write to per RTDB rules.
+// The processBid Cloud Function validates and applies the bid atomically.
 export async function submitBid(
   auctionId: string,
   itemId: string,
@@ -348,7 +312,7 @@ export async function submitBid(
   amount: number,
   round: 1 | 2 | 3
 ): Promise<string> {
-  // Client-side pre-validation (CF does authoritative validation)
+  // Client-side pre-validation (CF does authoritative check)
   const auctionSnap = await get(ref(db, `auctions/${auctionId}`));
   const auction = auctionSnap.val();
   if (!auction || auction.status !== 'live') throw new Error('המכרז לא חי');
@@ -367,7 +331,7 @@ export async function submitBid(
   if ((amount - item.currentBid) % increment !== 0) throw new Error('הסכום לא מיושר למדרגת הקפיצה');
   if (userId === item.currentBidderId) throw new Error('אינך יכול להקפיץ מעל עצמך');
 
-  // Write to pending_bids — processBid CF handles the rest
+  // Write to pending_bids — Cloud Function processBid handles the rest
   await push(ref(db, 'pending_bids'), {
     auctionId,
     itemId,
@@ -452,6 +416,7 @@ export async function handleTimerExpiry(auctionId: string): Promise<string> {
       await update(ref(db, `auctions/${auctionId}`), {
         round1Resets: round1Resets + 1,
         timerEndsAt: now + timerSec * 1000,
+        timerPaused: false,
       });
       await chatMsg(auctionId, `סיבוב 1 — ניסיון ${round1Resets + 1}/2, אין הצעות`);
       return 'טיימר אופס מחדש';

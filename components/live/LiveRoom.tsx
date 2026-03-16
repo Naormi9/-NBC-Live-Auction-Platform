@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useCurrentItem, useBidHistory, useLiveChat, useCatalog, useViewerCount, useTimer, useRegistration, useLiveAuction, useAuction } from '@/lib/hooks';
 import { trackViewer } from '@/lib/presence';
 import { playOutbidSound, playTimerWarningSound, playTimer10SecSound, playTimerEndSound, playItemSoldSound } from '@/lib/sounds';
+import Link from 'next/link';
 import AuctionTimer from './AuctionTimer';
 import BidButton from './BidButton';
 import CurrentItem from './CurrentItem';
@@ -17,7 +18,7 @@ import LoadingSpinner from '../ui/LoadingSpinner';
 import { LogoCompact } from '../ui/Logo';
 
 export default function LiveRoom() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { auctionId, loading: liveLoading } = useLiveAuction();
   const { item, auction, loading: itemLoading } = useCurrentItem(auctionId);
   const bids = useBidHistory(auctionId, item?.id || null);
@@ -25,7 +26,8 @@ export default function LiveRoom() {
   const { items } = useCatalog(auctionId);
   const viewerCount = useViewerCount(auctionId);
   const secondsLeft = useTimer(auctionId);
-  const { registered } = useRegistration(auctionId, user?.uid || null);
+  // Auto-register approved users entering the live room
+  const { registered } = useRegistration(auctionId, user?.uid || null, true, profile?.verificationStatus);
 
   const prevBidderRef = useRef<string | null>(null);
   const prevItemStatusRef = useRef<string | null>(null);
@@ -39,6 +41,31 @@ export default function LiveRoom() {
     const unsub = trackViewer(auctionId, user?.uid);
     return () => unsub();
   }, [auctionId, user?.uid]);
+
+  // Wake Lock: keep screen awake during live auction (mobile)
+  useEffect(() => {
+    if (!auctionId) return;
+    let wakeLock: any = null;
+    const requestWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await (navigator as any).wakeLock.request('screen');
+        }
+      } catch {
+        // Wake Lock not supported or denied — fail gracefully
+      }
+    };
+    requestWakeLock();
+    // Re-acquire on visibility change (tab becomes active again)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') requestWakeLock();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (wakeLock) wakeLock.release().catch(() => {});
+    };
+  }, [auctionId]);
 
   // Sound: outbid detection
   useEffect(() => {
@@ -128,9 +155,26 @@ export default function LiveRoom() {
             <LiveBadge />
             <span className="text-sm text-text-secondary hidden md:inline">{auction.title}</span>
           </div>
-          <div className="flex items-center gap-2 text-text-secondary text-sm">
-            <span>👁</span>
-            <span>{viewerCount} צופים</span>
+          <div className="flex items-center gap-3 text-text-secondary text-sm">
+            <span>👁 {viewerCount} צופים</span>
+            {auctionId && (
+              <>
+                <Link
+                  href={`/auctions/${auctionId}`}
+                  className="hidden md:inline px-2 py-1 text-xs bg-bg-elevated hover:bg-white/10 rounded-lg transition-smooth"
+                >
+                  חזרה לקטלוג
+                </Link>
+                <a
+                  href={`/auctions/${auctionId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hidden md:inline px-2 py-1 text-xs bg-bg-elevated hover:bg-white/10 rounded-lg transition-smooth"
+                >
+                  קטלוג בטאב חדש ↗
+                </a>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -175,7 +219,7 @@ export default function LiveRoom() {
       {/* Mobile Layout */}
       <div className="lg:hidden">
         {item ? (
-          <div className="space-y-3 pb-24">
+          <div className="space-y-3 pb-28">
             {/* Car image */}
             <CurrentItem item={item} totalItems={items.length} currentRound={auction.currentRound} increment={currentIncrement} />
 
@@ -183,6 +227,26 @@ export default function LiveRoom() {
             {!registered && (
               <div className="px-4">
                 <RegisterPrompt auctionId={auction.id} isLoggedIn={!!user} />
+              </div>
+            )}
+
+            {/* Catalog navigation - mobile */}
+            {auctionId && (
+              <div className="px-4 flex gap-2">
+                <Link
+                  href={`/auctions/${auctionId}`}
+                  className="text-xs px-3 py-1.5 bg-bg-elevated hover:bg-white/10 rounded-lg transition-smooth text-text-secondary"
+                >
+                  חזרה לקטלוג
+                </Link>
+                <a
+                  href={`/auctions/${auctionId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs px-3 py-1.5 bg-bg-elevated hover:bg-white/10 rounded-lg transition-smooth text-text-secondary"
+                >
+                  קטלוג בטאב חדש ↗
+                </a>
               </div>
             )}
 
@@ -231,7 +295,7 @@ export default function LiveRoom() {
 
         {/* Mobile sticky bottom bar */}
         {item && (
-          <div className="fixed bottom-0 left-0 right-0 glass border-t border-border p-3 flex items-center gap-3 z-50">
+          <div className="fixed bottom-0 left-0 right-0 glass border-t border-border p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-center gap-3 z-50">
             <div className="flex-shrink-0">
               <AuctionTimer secondsLeft={secondsLeft} currentRound={auction.currentRound} />
             </div>
