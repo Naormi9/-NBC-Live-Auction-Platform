@@ -1,6 +1,7 @@
 {
   "rules": {
     "pending_bids": {
+      ".read": false,
       "$bidId": {
         ".write": "auth != null && root.child('users').child(auth.uid).child('verificationStatus').val() === 'approved'",
         ".validate": "newData.hasChildren(['auctionId','itemId','userId','amount','timestamp']) && newData.child('userId').val() === auth.uid && newData.child('amount').isNumber() && newData.child('amount').val() > 0"
