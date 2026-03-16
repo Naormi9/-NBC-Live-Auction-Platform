@@ -2,6 +2,7 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 
 const db = admin.database();
+const SERVER_TIMESTAMP = admin.database.ServerValue?.TIMESTAMP ?? { '.sv': 'timestamp' };
 
 const DEFAULT_SETTINGS = {
   round1: { increment: 1000, timerSeconds: 45 },
@@ -133,7 +134,7 @@ export const processBid = functions.region('europe-west1').database
           userDisplayName: bid.userDisplayName,
           amount: bid.amount,
           round,
-          timestamp: admin.database.ServerValue.TIMESTAMP,
+          timestamp: SERVER_TIMESTAMP,
         });
 
         // System chat message
@@ -142,7 +143,7 @@ export const processBid = functions.region('europe-west1').database
           senderName: 'מערכת',
           senderRole: 'system',
           message: `הצעה התקבלה: ₪${bid.amount.toLocaleString()} מ-${bid.userDisplayName}`,
-          timestamp: admin.database.ServerValue.TIMESTAMP,
+          timestamp: SERVER_TIMESTAMP,
         });
       }
     }

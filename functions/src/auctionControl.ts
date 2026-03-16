@@ -2,6 +2,7 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 
 const db = admin.database();
+const SERVER_TIMESTAMP = admin.database.ServerValue?.TIMESTAMP ?? { '.sv': 'timestamp' };
 
 // Admin email allowlist - server-side enforcement
 const ADMIN_EMAILS = ['ceo@m-motors.co.il', 'office@m-motors.co.il'];
@@ -126,7 +127,7 @@ async function advanceToNextItem(auctionId: string, settings: any) {
     await db.ref(`/live_chat/${auctionId}`).push({
       senderId: 'system', senderName: 'מערכת', senderRole: 'system',
       message: 'המכרז הסתיים! תודה לכל המשתתפים.',
-      timestamp: admin.database.ServerValue.TIMESTAMP,
+      timestamp: SERVER_TIMESTAMP,
     });
     return { action: 'auction_ended' };
   }
@@ -155,7 +156,7 @@ async function advanceToNextItem(auctionId: string, settings: any) {
   await db.ref(`/live_chat/${auctionId}`).push({
     senderId: 'system', senderName: 'מערכת', senderRole: 'system',
     message: `הפריט "${nextItem.title}" עלה לבמה!`,
-    timestamp: admin.database.ServerValue.TIMESTAMP,
+    timestamp: SERVER_TIMESTAMP,
   });
 
   return { action: 'advanced_to_next', nextItemId: nextItem.id };
@@ -227,7 +228,7 @@ export const startAuctionLive = functions.region('europe-west1').https.onRequest
     await db.ref(`/live_chat/${auctionId}`).push({
       senderId: 'system', senderName: 'מערכת', senderRole: 'system',
       message: `המכרז התחיל! הפריט הראשון: "${firstItem.title}"`,
-      timestamp: admin.database.ServerValue.TIMESTAMP,
+      timestamp: SERVER_TIMESTAMP,
     });
 
     return sendOk(res, { action: 'started', auctionId, firstItemId: firstItem.id });
@@ -285,7 +286,7 @@ export const activateFirstItem = functions.region('europe-west1').https.onReques
     await db.ref(`/live_chat/${auctionId}`).push({
       senderId: 'system', senderName: 'מערכת', senderRole: 'system',
       message: `הפריט "${firstItem.title}" עלה לבמה!`,
-      timestamp: admin.database.ServerValue.TIMESTAMP,
+      timestamp: SERVER_TIMESTAMP,
     });
 
     return sendOk(res, { action: 'activated', itemId: firstItem.id });
@@ -321,7 +322,7 @@ export const advanceAuctionRound = functions.region('europe-west1').https.onRequ
     await db.ref(`/live_chat/${auctionId}`).push({
       senderId: 'system', senderName: 'מערכת', senderRole: 'system',
       message: `עוברים לסיבוב ${nextRound} — מדרגת קפיצה: ₪${auction.settings[roundKey].increment.toLocaleString()}`,
-      timestamp: admin.database.ServerValue.TIMESTAMP,
+      timestamp: SERVER_TIMESTAMP,
     });
 
     return sendOk(res, { action: 'advanced_round', round: nextRound });
@@ -353,7 +354,7 @@ export const closeItemAndAdvance = functions.region('europe-west1').https.onRequ
       const isSold = !!markAsSold && item.currentBid > 0 && hasBidder;
       const itemUpdate: Record<string, any> = { status: isSold ? 'sold' : 'unsold' };
       if (isSold) {
-        itemUpdate.soldAt = admin.database.ServerValue.TIMESTAMP;
+        itemUpdate.soldAt = SERVER_TIMESTAMP;
         itemUpdate.soldPrice = item.currentBid;
         itemUpdate.winnerId = item.currentBidderId;
         itemUpdate.winnerName = item.currentBidderName;
@@ -366,7 +367,7 @@ export const closeItemAndAdvance = functions.region('europe-west1').https.onRequ
         message: isSold
           ? `הפריט "${item.title}" נמכר ב-₪${item.currentBid.toLocaleString()} ל-${item.currentBidderName}!`
           : `הפריט "${item.title}" לא נמכר.`,
-        timestamp: admin.database.ServerValue.TIMESTAMP,
+        timestamp: SERVER_TIMESTAMP,
       });
     }
 
@@ -440,7 +441,7 @@ export const endAuction = functions.region('europe-west1').https.onRequest(async
     await db.ref(`/live_chat/${auctionId}`).push({
       senderId: 'system', senderName: 'מערכת', senderRole: 'system',
       message: 'המכרז הסתיים על ידי הכרוז.',
-      timestamp: admin.database.ServerValue.TIMESTAMP,
+      timestamp: SERVER_TIMESTAMP,
     });
 
     return sendOk(res, { action: 'ended' });

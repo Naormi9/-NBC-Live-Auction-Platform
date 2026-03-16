@@ -2,6 +2,7 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 
 const db = admin.database();
+const SERVER_TIMESTAMP = admin.database.ServerValue?.TIMESTAMP ?? { '.sv': 'timestamp' };
 
 const DEFAULT_SETTINGS = {
   round1: { increment: 1000, timerSeconds: 45 },
@@ -87,7 +88,7 @@ export const timerTick = functions.region('europe-west1').pubsub
             senderName: 'מערכת',
             senderRole: 'system',
             message: `סיבוב 1 — ניסיון ${round1Resets + 1}/2, הטיימר מתאפס`,
-            timestamp: admin.database.ServerValue.TIMESTAMP,
+            timestamp: SERVER_TIMESTAMP,
           });
         } else {
           // 3rd time expired — advance to round 2
@@ -123,7 +124,7 @@ async function advanceRound(auctionId: string, nextRound: 2 | 3, settings: any) 
     senderName: 'מערכת',
     senderRole: 'system',
     message: `עוברים לסיבוב ${nextRound} — מדרגת קפיצה: ₪${settings[roundKey].increment.toLocaleString()}`,
-    timestamp: admin.database.ServerValue.TIMESTAMP,
+    timestamp: SERVER_TIMESTAMP,
   });
 }
 
@@ -139,7 +140,7 @@ async function closeItemAndAdvance(auctionId: string, auction: any, settings: an
   if (hasBidder) {
     await itemRef.update({
       status: 'sold',
-      soldAt: admin.database.ServerValue.TIMESTAMP,
+      soldAt: SERVER_TIMESTAMP,
       soldPrice: item.currentBid,
       winnerId: item.currentBidderId,
       winnerName: item.currentBidderName,
@@ -150,7 +151,7 @@ async function closeItemAndAdvance(auctionId: string, auction: any, settings: an
       senderName: 'מערכת',
       senderRole: 'system',
       message: `הפריט "${item.title}" נמכר ב-₪${item.currentBid.toLocaleString()} ל-${item.currentBidderName}!`,
-      timestamp: admin.database.ServerValue.TIMESTAMP,
+      timestamp: SERVER_TIMESTAMP,
     });
   } else {
     await itemRef.update({ status: 'unsold' });
@@ -159,7 +160,7 @@ async function closeItemAndAdvance(auctionId: string, auction: any, settings: an
       senderName: 'מערכת',
       senderRole: 'system',
       message: `הפריט "${item.title}" לא נמכר.`,
-      timestamp: admin.database.ServerValue.TIMESTAMP,
+      timestamp: SERVER_TIMESTAMP,
     });
   }
 
@@ -187,7 +188,7 @@ async function closeItemAndAdvance(auctionId: string, auction: any, settings: an
       senderName: 'מערכת',
       senderRole: 'system',
       message: 'המכרז הסתיים! תודה לכל המשתתפים.',
-      timestamp: admin.database.ServerValue.TIMESTAMP,
+      timestamp: SERVER_TIMESTAMP,
     });
     await lockRef.remove();
   } else {
@@ -232,7 +233,7 @@ async function closeItemAndAdvance(auctionId: string, auction: any, settings: an
       senderName: 'מערכת',
       senderRole: 'system',
       message: `הפריט "${nextItem.title}" עלה לבמה!`,
-      timestamp: admin.database.ServerValue.TIMESTAMP,
+      timestamp: SERVER_TIMESTAMP,
     });
     await lockRef.remove();
   }
