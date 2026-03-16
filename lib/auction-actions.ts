@@ -316,7 +316,6 @@ export async function submitBid(
   const auctionSnap = await get(ref(db, `auctions/${auctionId}`));
   const auction = auctionSnap.val();
   if (!auction || auction.status !== 'live') throw new Error('המכרז לא חי');
-  if (auction.timerPaused) throw new Error('הטיימר מושהה — לא ניתן להציע כרגע');
 
   const itemSnap = await get(ref(db, `auction_items/${itemId}`));
   const item = itemSnap.val();

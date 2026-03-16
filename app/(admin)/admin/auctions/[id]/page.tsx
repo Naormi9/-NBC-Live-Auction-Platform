@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { ref, update } from 'firebase/database';
-import { db } from '@/lib/firebase';
+import { ref, update, push, set, remove } from 'firebase/database';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '@/lib/firebase';
 import * as auctionActions from '@/lib/auction-actions';
 import { useAuction, useCatalog } from '@/lib/hooks';
 import Navbar from '@/components/ui/Navbar';
@@ -11,6 +12,30 @@ import { AuctionStatusBadge, ItemStatusBadge } from '@/components/ui/StatusBadge
 import { formatPrice } from '@/lib/auction-utils';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import toast from 'react-hot-toast';
+
+interface NewItemForm {
+  title: string; make: string; model: string; year: string; km: string;
+  color: string; engineCC: string; owners: string; openingPrice: string;
+  registrationDate: string; description: string; files: FileList | null;
+}
+
+const emptyItem = (): NewItemForm => ({
+  title: '', make: '', model: '', year: '', km: '',
+  color: '', engineCC: '', owners: '1', openingPrice: '',
+  registrationDate: '', description: '', files: null,
+});
+
+const uploadImages = async (files: FileList, itemId: string): Promise<string[]> => {
+  const urls: string[] = [];
+  for (let i = 0; i < Math.min(files.length, 5); i++) {
+    const file = files[i];
+    const fileRef = storageRef(storage, `auction_items/${itemId}/${Date.now()}_${file.name}`);
+    await uploadBytes(fileRef, file);
+    const url = await getDownloadURL(fileRef);
+    urls.push(url);
+  }
+  return urls;
+};
 
 export default function EditAuctionPage() {
   const params = useParams();
@@ -36,6 +61,10 @@ export default function EditAuctionPage() {
 
   // Item edit state
   const [editingItems, setEditingItems] = useState<Record<string, any>>({});
+  // New items to add
+  const [newItems, setNewItems] = useState<NewItemForm[]>([]);
+  // Items to delete
+  const [deletedItemIds, setDeletedItemIds] = useState<string[]>([]);
 
   // Populate form when auction loads
   useEffect(() => {
@@ -102,6 +131,28 @@ export default function EditAuctionPage() {
     }
   };
 
+  const addNewItem = () => {
+    setNewItems([...newItems, emptyItem()]);
+  };
+
+  const updateNewItem = (index: number, field: string, value: any) => {
+    const updated = [...newItems];
+    (updated[index] as any)[field] = value;
+    setNewItems(updated);
+  };
+
+  const removeNewItem = (index: number) => {
+    setNewItems(newItems.filter((_, i) => i !== index));
+  };
+
+  const markItemForDeletion = (itemId: string) => {
+    setDeletedItemIds([...deletedItemIds, itemId]);
+  };
+
+  const unmarkItemForDeletion = (itemId: string) => {
+    setDeletedItemIds(deletedItemIds.filter(id => id !== itemId));
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -120,8 +171,9 @@ export default function EditAuctionPage() {
         },
       });
 
-      // Save item changes
+      // Save existing item changes (skip deleted ones)
       for (const [itemId, data] of Object.entries(editingItems)) {
+        if (deletedItemIds.includes(itemId)) continue;
         await update(ref(db, `auction_items/${itemId}`), {
           title: `${data.make} ${data.model} ${data.year}`.trim(),
           make: data.make,
@@ -136,8 +188,54 @@ export default function EditAuctionPage() {
         });
       }
 
+      // Delete items marked for deletion
+      for (const itemId of deletedItemIds) {
+        await remove(ref(db, `auction_items/${itemId}`));
+      }
+
+      // Determine next order number
+      const existingCount = items.filter(i => !deletedItemIds.includes(i.id)).length;
+
+      // Create new items
+      for (let i = 0; i < newItems.length; i++) {
+        const item = newItems[i];
+        const itemRef = push(ref(db, 'auction_items'));
+        await set(itemRef, {
+          id: itemRef.key,
+          auctionId,
+          order: existingCount + i + 1,
+          title: item.title || `${item.make} ${item.model} ${item.year}`.trim(),
+          description: item.description,
+          images: [],
+          openingPrice: parseInt(item.openingPrice) || 0,
+          currentBid: parseInt(item.openingPrice) || 0,
+          currentBidderId: null,
+          currentBidderName: null,
+          preBidPrice: null,
+          status: 'pending',
+          soldAt: null,
+          soldPrice: null,
+          make: item.make,
+          model: item.model,
+          year: parseInt(item.year) || 0,
+          km: parseInt(item.km) || 0,
+          color: item.color,
+          engineCC: parseInt(item.engineCC) || 0,
+          owners: parseInt(item.owners) || 1,
+          registrationDate: item.registrationDate,
+        });
+
+        // Upload images if provided
+        if (item.files && item.files.length > 0) {
+          const imageUrls = await uploadImages(item.files, itemRef.key!);
+          await update(ref(db, `auction_items/${itemRef.key}`), { images: imageUrls });
+        }
+      }
+
       toast.success('המכרז עודכן בהצלחה!');
       setEditing(false);
+      setNewItems([]);
+      setDeletedItemIds([]);
     } catch (err) {
       toast.error('שגיאה בעדכון המכרז');
     } finally {
@@ -152,12 +250,14 @@ export default function EditAuctionPage() {
     }));
   };
 
+  const visibleItems = items.filter(i => !deletedItemIds.includes(i.id));
+
   return (
     <div className="min-h-screen">
       <Navbar />
       <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
         {/* Header */}
-        <div className="glass rounded-xl p-6">
+        <div className="glass rounded-2xl p-6">
           {editing ? (
             <div className="space-y-4">
               <h2 className="font-bold text-lg">עריכת מכרז</h2>
@@ -166,7 +266,7 @@ export default function EditAuctionPage() {
                 <input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full bg-bg-elevated border border-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-accent"
+                  className="w-full bg-bg-elevated border border-border rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent transition-smooth"
                 />
               </div>
               <div>
@@ -174,7 +274,7 @@ export default function EditAuctionPage() {
                 <input
                   value={houseName}
                   onChange={(e) => setHouseName(e.target.value)}
-                  className="w-full bg-bg-elevated border border-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-accent"
+                  className="w-full bg-bg-elevated border border-border rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent transition-smooth"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -184,7 +284,7 @@ export default function EditAuctionPage() {
                     type="date"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className="w-full bg-bg-elevated border border-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-accent"
+                    className="w-full bg-bg-elevated border border-border rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent transition-smooth"
                     dir="ltr"
                   />
                 </div>
@@ -194,7 +294,7 @@ export default function EditAuctionPage() {
                     type="time"
                     value={time}
                     onChange={(e) => setTime(e.target.value)}
-                    className="w-full bg-bg-elevated border border-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-accent"
+                    className="w-full bg-bg-elevated border border-border rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent transition-smooth"
                     dir="ltr"
                   />
                 </div>
@@ -225,27 +325,27 @@ export default function EditAuctionPage() {
 
           <div className="flex gap-3 mt-4">
             {canEdit && !editing && (
-              <button onClick={() => setEditing(true)} className="bg-accent text-white px-4 py-2 rounded-lg font-semibold text-sm">
+              <button onClick={() => setEditing(true)} className="bg-accent hover:bg-accent-hover text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition-smooth">
                 ערוך מכרז
               </button>
             )}
             {editing && (
               <>
-                <button onClick={handleSave} disabled={saving} className="bg-accent text-white px-4 py-2 rounded-lg font-semibold text-sm disabled:opacity-50">
+                <button onClick={handleSave} disabled={saving} className="bg-accent hover:bg-accent-hover text-white px-5 py-2.5 rounded-xl font-semibold text-sm disabled:opacity-50 transition-smooth">
                   {saving ? 'שומר...' : 'שמור שינויים'}
                 </button>
-                <button onClick={() => setEditing(false)} className="bg-bg-elevated text-text-secondary px-4 py-2 rounded-lg font-semibold text-sm">
+                <button onClick={() => { setEditing(false); setNewItems([]); setDeletedItemIds([]); }} className="bg-bg-elevated text-text-secondary px-5 py-2.5 rounded-xl font-semibold text-sm border border-border hover:text-white transition-smooth">
                   ביטול
                 </button>
               </>
             )}
             {auction.status === 'published' && !editing && (
-              <button onClick={startLive} className="bg-live-dot text-white px-4 py-2 rounded-lg font-semibold text-sm">
+              <button onClick={startLive} className="bg-live-dot hover:bg-red-600 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition-smooth">
                 התחל מכרז חי
               </button>
             )}
             {auction.status === 'live' && (
-              <button onClick={handleEndAuction} className="bg-timer-red text-white px-4 py-2 rounded-lg font-semibold text-sm">
+              <button onClick={handleEndAuction} className="bg-timer-red hover:bg-red-600 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition-smooth">
                 סיים מכרז
               </button>
             )}
@@ -254,7 +354,7 @@ export default function EditAuctionPage() {
 
         {/* Round settings (edit mode only) */}
         {editing && (
-          <div className="glass rounded-xl p-6 space-y-4">
+          <div className="glass rounded-2xl p-6 space-y-4">
             <h2 className="font-bold">הגדרות סיבובים</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <RoundSetting label="סיבוב 1" inc={r1Inc} setInc={setR1Inc} timer={r1Timer} setTimer={setR1Timer} />
@@ -267,7 +367,7 @@ export default function EditAuctionPage() {
                 type="number"
                 value={hardClose}
                 onChange={(e) => setHardClose(parseInt(e.target.value))}
-                className="w-32 bg-bg-elevated border border-border rounded-lg px-4 py-2 text-white focus:outline-none focus:border-accent"
+                className="w-32 bg-bg-elevated border border-border rounded-xl px-4 py-2 text-white focus:outline-none focus:border-accent transition-smooth"
                 dir="ltr"
               />
             </div>
@@ -275,49 +375,130 @@ export default function EditAuctionPage() {
         )}
 
         {/* Items */}
-        <div className="glass rounded-xl p-6">
+        <div className="glass rounded-2xl p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold">פריטים ({items.length})</h2>
+            <h2 className="font-bold text-lg">פריטים ({visibleItems.length}{newItems.length > 0 ? ` + ${newItems.length} חדשים` : ''})</h2>
+            {editing && canEdit && (
+              <button
+                type="button"
+                onClick={addNewItem}
+                className="bg-accent hover:bg-accent-hover text-white px-4 py-2 rounded-xl text-sm font-semibold transition-smooth"
+              >
+                + הוסף פריט
+              </button>
+            )}
           </div>
-          <div className="space-y-2">
-            {items.map((item) => (
-              <div key={item.id} className="bg-bg-elevated rounded-lg p-4">
-                {editing && editingItems[item.id] ? (
-                  <div className="space-y-3">
-                    <div className="font-semibold mb-2">פריט {item.order}</div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <SmallInput label="יצרן" value={editingItems[item.id].make} onChange={(v) => updateItemField(item.id, 'make', v)} />
-                      <SmallInput label="דגם" value={editingItems[item.id].model} onChange={(v) => updateItemField(item.id, 'model', v)} />
-                      <SmallInput label="שנה" value={editingItems[item.id].year} onChange={(v) => updateItemField(item.id, 'year', v)} type="number" />
-                      <SmallInput label='ק"מ' value={editingItems[item.id].km} onChange={(v) => updateItemField(item.id, 'km', v)} type="number" />
-                      <SmallInput label="צבע" value={editingItems[item.id].color} onChange={(v) => updateItemField(item.id, 'color', v)} />
-                      <SmallInput label="נפח מנוע" value={editingItems[item.id].engineCC} onChange={(v) => updateItemField(item.id, 'engineCC', v)} type="number" />
-                      <SmallInput label="יד" value={editingItems[item.id].owners} onChange={(v) => updateItemField(item.id, 'owners', v)} type="number" />
-                      <SmallInput label="מחיר פתיחה (₪)" value={editingItems[item.id].openingPrice} onChange={(v) => updateItemField(item.id, 'openingPrice', v)} type="number" />
+
+          <div className="space-y-3">
+            {/* Existing items */}
+            {items.map((item) => {
+              const isDeleted = deletedItemIds.includes(item.id);
+              if (isDeleted && !editing) return null;
+
+              return (
+                <div key={item.id} className={`bg-bg-elevated rounded-xl p-4 transition-smooth ${isDeleted ? 'opacity-40 border-2 border-timer-red/30' : ''}`}>
+                  {editing && editingItems[item.id] && !isDeleted ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="font-semibold">פריט {item.order}</div>
+                        {canEdit && item.status === 'pending' && (
+                          <button
+                            type="button"
+                            onClick={() => markItemForDeletion(item.id)}
+                            className="text-timer-red text-sm hover:underline"
+                          >
+                            הסר פריט
+                          </button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <SmallInput label="יצרן" value={editingItems[item.id].make} onChange={(v) => updateItemField(item.id, 'make', v)} />
+                        <SmallInput label="דגם" value={editingItems[item.id].model} onChange={(v) => updateItemField(item.id, 'model', v)} />
+                        <SmallInput label="שנה" value={editingItems[item.id].year} onChange={(v) => updateItemField(item.id, 'year', v)} type="number" />
+                        <SmallInput label='ק"מ' value={editingItems[item.id].km} onChange={(v) => updateItemField(item.id, 'km', v)} type="number" />
+                        <SmallInput label="צבע" value={editingItems[item.id].color} onChange={(v) => updateItemField(item.id, 'color', v)} />
+                        <SmallInput label="נפח מנוע" value={editingItems[item.id].engineCC} onChange={(v) => updateItemField(item.id, 'engineCC', v)} type="number" />
+                        <SmallInput label="יד" value={editingItems[item.id].owners} onChange={(v) => updateItemField(item.id, 'owners', v)} type="number" />
+                        <SmallInput label="מחיר פתיחה (₪)" value={editingItems[item.id].openingPrice} onChange={(v) => updateItemField(item.id, 'openingPrice', v)} type="number" />
+                      </div>
+                      <SmallInput label="תיאור" value={editingItems[item.id].description} onChange={(v) => updateItemField(item.id, 'description', v)} full />
                     </div>
-                    <SmallInput label="תיאור" value={editingItems[item.id].description} onChange={(v) => updateItemField(item.id, 'description', v)} full />
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="w-8 h-8 rounded-full bg-bg-surface flex items-center justify-center text-sm font-bold">
-                        {item.order}
-                      </span>
-                      <div>
-                        <div className="font-semibold">{item.title}</div>
-                        <div className="text-sm text-text-secondary">
-                          {item.year} • {item.km?.toLocaleString()} ק&quot;מ • פתיחה: {formatPrice(item.openingPrice)}
+                  ) : isDeleted ? (
+                    <div className="flex items-center justify-between">
+                      <span className="text-timer-red line-through">פריט {item.order} — {item.title}</span>
+                      <button
+                        type="button"
+                        onClick={() => unmarkItemForDeletion(item.id)}
+                        className="text-accent text-sm hover:underline"
+                      >
+                        בטל מחיקה
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="w-8 h-8 rounded-full bg-bg-surface flex items-center justify-center text-sm font-bold flex-shrink-0">
+                          {item.order}
+                        </span>
+                        <div>
+                          <div className="font-semibold">{item.title}</div>
+                          <div className="text-sm text-text-secondary">
+                            {item.year} • {item.km?.toLocaleString()} ק&quot;מ • פתיחה: {formatPrice(item.openingPrice)}
+                            {item.preBidPrice && item.preBidPrice > item.openingPrice && (
+                              <span className="text-bid-price mr-2">• הצעה מוקדמת: {formatPrice(item.preBidPrice)}</span>
+                            )}
+                          </div>
                         </div>
                       </div>
+                      <div className="flex items-center gap-3">
+                        <ItemStatusBadge status={item.status} />
+                        {item.preBidPrice && item.preBidPrice > item.openingPrice && (
+                          <span className="text-bid-price font-bold text-sm">{formatPrice(item.preBidPrice)}</span>
+                        )}
+                        {item.soldPrice && (
+                          <span className="text-bid-price font-bold">{formatPrice(item.soldPrice)}</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <ItemStatusBadge status={item.status} />
-                      {item.soldPrice && (
-                        <span className="text-bid-price font-bold">{formatPrice(item.soldPrice)}</span>
-                      )}
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
+              );
+            })}
+
+            {/* New items being added */}
+            {newItems.map((item, i) => (
+              <div key={`new-${i}`} className="bg-accent/5 border border-accent/20 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-accent">פריט חדש {i + 1}</span>
+                  <button type="button" onClick={() => removeNewItem(i)} className="text-timer-red text-sm hover:underline">
+                    הסר
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <SmallInput label="יצרן" value={item.make} onChange={(v) => updateNewItem(i, 'make', v)} />
+                  <SmallInput label="דגם" value={item.model} onChange={(v) => updateNewItem(i, 'model', v)} />
+                  <SmallInput label="שנה" value={item.year} onChange={(v) => updateNewItem(i, 'year', v)} type="number" />
+                  <SmallInput label='ק"מ' value={item.km} onChange={(v) => updateNewItem(i, 'km', v)} type="number" />
+                  <SmallInput label="צבע" value={item.color} onChange={(v) => updateNewItem(i, 'color', v)} />
+                  <SmallInput label="נפח מנוע" value={item.engineCC} onChange={(v) => updateNewItem(i, 'engineCC', v)} type="number" />
+                  <SmallInput label="יד" value={item.owners} onChange={(v) => updateNewItem(i, 'owners', v)} type="number" />
+                  <SmallInput label="מחיר פתיחה (₪)" value={item.openingPrice} onChange={(v) => updateNewItem(i, 'openingPrice', v)} type="number" />
+                </div>
+                <SmallInput label="תיאור" value={item.description} onChange={(v) => updateNewItem(i, 'description', v)} full />
+                <div>
+                  <label className="text-xs text-text-secondary">תמונות רכב (עד 5)</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => {
+                      if (e.target.files) {
+                        updateNewItem(i, 'files', e.target.files);
+                      }
+                    }}
+                    className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2 text-white text-sm file:mr-3 file:bg-accent/20 file:text-accent file:border-0 file:rounded file:px-2 file:py-1 file:text-xs"
+                  />
+                </div>
               </div>
             ))}
           </div>
@@ -331,7 +512,7 @@ function RoundSetting({ label, inc, setInc, timer, setTimer }: {
   label: string; inc: number; setInc: (n: number) => void; timer: number; setTimer: (n: number) => void;
 }) {
   return (
-    <div className="bg-bg-elevated rounded-lg p-3 space-y-2">
+    <div className="bg-bg-elevated rounded-xl p-4 space-y-3">
       <div className="text-sm font-semibold">{label}</div>
       <div>
         <label className="text-xs text-text-secondary">מדרגת קפיצה (₪)</label>
@@ -339,7 +520,7 @@ function RoundSetting({ label, inc, setInc, timer, setTimer }: {
           type="number"
           value={inc}
           onChange={(e) => setInc(parseInt(e.target.value))}
-          className="w-full bg-bg-primary border border-border rounded px-2 py-1 text-white text-sm"
+          className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-accent transition-smooth"
           dir="ltr"
         />
       </div>
@@ -349,7 +530,7 @@ function RoundSetting({ label, inc, setInc, timer, setTimer }: {
           type="number"
           value={timer}
           onChange={(e) => setTimer(parseInt(e.target.value))}
-          className="w-full bg-bg-primary border border-border rounded px-2 py-1 text-white text-sm"
+          className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-accent transition-smooth"
           dir="ltr"
         />
       </div>
@@ -367,7 +548,7 @@ function SmallInput({ label, value, onChange, type = 'text', full = false }: {
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-bg-primary border border-border rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-accent"
+        className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-accent transition-smooth"
         dir={type === 'number' ? 'ltr' : undefined}
       />
     </div>

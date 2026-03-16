@@ -3,23 +3,55 @@
 let ctx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
 const activeNodes: AudioNode[] = [];
+let userGestureReceived = false;
 
-function getCtx(): AudioContext {
+// Defer AudioContext creation until first user gesture to avoid browser errors
+function initOnGesture() {
+  if (userGestureReceived) return;
+  userGestureReceived = true;
+
+  const events = ['click', 'touchstart', 'keydown'] as const;
+  const handler = () => {
+    // Remove all listeners once triggered
+    events.forEach((e) => document.removeEventListener(e, handler, true));
+    // Create or resume AudioContext on first gesture
+    if (ctx && ctx.state === 'suspended') {
+      ctx.resume();
+    }
+  };
+  events.forEach((e) => document.addEventListener(e, handler, { capture: true, once: false }));
+}
+
+// Auto-register gesture listener on module load (client only)
+if (typeof window !== 'undefined') {
+  initOnGesture();
+}
+
+function getCtx(): AudioContext | null {
+  if (typeof window === 'undefined') return null;
+
   if (!ctx) {
-    ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    masterGain = ctx.createGain();
-    masterGain.gain.value = 0.72;
-    masterGain.connect(ctx.destination);
+    // Only create AudioContext if we've had a user gesture already
+    // On most browsers, AudioContext created during/after a gesture is auto-allowed
+    try {
+      ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      masterGain = ctx.createGain();
+      masterGain.gain.value = 0.72;
+      masterGain.connect(ctx.destination);
+    } catch {
+      return null;
+    }
   }
   if (ctx.state === 'suspended') {
-    ctx.resume();
+    ctx.resume().catch(() => {});
   }
   return ctx;
 }
 
-function getMaster(): GainNode {
-  getCtx();
-  return masterGain!;
+function getMaster(): GainNode | null {
+  const audio = getCtx();
+  if (!audio) return null;
+  return masterGain;
 }
 
 function remember<T extends AudioNode>(node: T): T {
@@ -43,6 +75,8 @@ function playOsc(
 ) {
   const audio = getCtx();
   const master = getMaster();
+  if (!audio || !master) return;
+
   const osc = remember(audio.createOscillator());
   const g = remember(audio.createGain());
 
@@ -64,6 +98,8 @@ function playOsc(
 function playNoise(start: number, duration: number, gain = 0.05, filterFreq = 1800) {
   const audio = getCtx();
   const master = getMaster();
+  if (!audio || !master) return;
+
   const bufferSize = Math.max(1, Math.floor(audio.sampleRate * duration));
   const buffer = audio.createBuffer(1, bufferSize, audio.sampleRate);
   const data = buffer.getChannelData(0);
@@ -87,10 +123,10 @@ function playNoise(start: number, duration: number, gain = 0.05, filterFreq = 18
 }
 
 // ─── New Bid Placed ─────────────────────────────────────────
-// Sharp digital click — tactile live-auction feel
 export function playBidSound() {
   try {
     const audio = getCtx();
+    if (!audio) return;
     const t = audio.currentTime + 0.01;
     playOsc(1280, 'triangle', t, 0.035, 0.14, 520);
     playOsc(2200, 'sine', t, 0.012, 0.05, 1400);
@@ -99,10 +135,10 @@ export function playBidSound() {
 }
 
 // ─── Bid Accepted / Item Sold ───────────────────────────────
-// Soft positive confirmation (ascending interval)
 export function playItemSoldSound() {
   try {
     const audio = getCtx();
+    if (!audio) return;
     const t = audio.currentTime + 0.01;
     playOsc(740, 'sine', t, 0.11, 0.12);
     playOsc(988, 'sine', t + 0.10, 0.18, 0.13);
@@ -111,10 +147,10 @@ export function playItemSoldSound() {
 }
 
 // ─── Outbid Alert ───────────────────────────────────────────
-// Quick descending alert with noise texture
 export function playOutbidSound() {
   try {
     const audio = getCtx();
+    if (!audio) return;
     const t = audio.currentTime + 0.01;
     playOsc(1046, 'triangle', t, 0.09, 0.10);
     playOsc(740, 'sine', t + 0.09, 0.15, 0.12);
@@ -123,10 +159,10 @@ export function playOutbidSound() {
 }
 
 // ─── Timer 10 Second Warning ────────────────────────────────
-// Tight urgent ping for countdown
 export function playTimer10SecSound() {
   try {
     const audio = getCtx();
+    if (!audio) return;
     const t = audio.currentTime + 0.005;
     playOsc(1620, 'triangle', t, 0.03, 0.08);
     playNoise(t, 0.018, 0.008, 2600);
@@ -134,10 +170,10 @@ export function playTimer10SecSound() {
 }
 
 // ─── Timer 5 Second Warning ────────────────────────────────
-// Slightly louder tick with higher urgency
 export function playTimerWarningSound() {
   try {
     const audio = getCtx();
+    if (!audio) return;
     const t = audio.currentTime + 0.005;
     playOsc(1620, 'triangle', t, 0.03, 0.12);
     playOsc(2400, 'sine', t, 0.015, 0.04);
@@ -146,10 +182,10 @@ export function playTimerWarningSound() {
 }
 
 // ─── Auction Open ───────────────────────────────────────────
-// Ascending premium glide — grand opening
 export function playAuctionEndSound() {
   try {
     const audio = getCtx();
+    if (!audio) return;
     const t = audio.currentTime + 0.01;
     playOsc(260, 'sine', t, 0.40, 0.08, 520);
     playOsc(390, 'sine', t + 0.16, 0.42, 0.10, 780);
@@ -158,10 +194,10 @@ export function playAuctionEndSound() {
 }
 
 // ─── Auction / Timer End ────────────────────────────────────
-// Modern digital gavel — low thud with crisp transient
 export function playTimerEndSound() {
   try {
     const audio = getCtx();
+    if (!audio) return;
     const t = audio.currentTime + 0.01;
     playOsc(96, 'sine', t, 0.18, 0.26, 38);
     playOsc(620, 'square', t, 0.045, 0.05, 180);
@@ -171,10 +207,10 @@ export function playTimerEndSound() {
 }
 
 // ─── You Are Leading ────────────────────────────────────────
-// Quick positive feedback when you're the highest bidder
 export function playLeadingSound() {
   try {
     const audio = getCtx();
+    if (!audio) return;
     const t = audio.currentTime + 0.01;
     playOsc(880, 'sine', t, 0.08, 0.10);
     playOsc(1174, 'triangle', t + 0.08, 0.11, 0.08);

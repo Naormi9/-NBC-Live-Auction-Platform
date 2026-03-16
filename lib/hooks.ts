@@ -267,6 +267,62 @@ export function useAutoAdvance(auctionId: string | null, isAdmin: boolean) {
   }, [auctionId, auction?.timerEndsAt, auction?.status, auction?.timerPaused, isAdmin, processing]);
 }
 
+// Countdown to scheduled start time + auto-resume when countdown ends
+export function useScheduledCountdown(auctionId: string | null, isAdmin: boolean) {
+  const { auction } = useAuction(auctionId);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const autoStartedRef = useRef(false);
+
+  useEffect(() => {
+    if (!auction || auction.status !== 'live') {
+      setCountdown(null);
+      return;
+    }
+    if (!auction.waitingForScheduledStart) {
+      setCountdown(null);
+      return;
+    }
+    if (!auction.scheduledAt) {
+      setCountdown(null);
+      return;
+    }
+
+    const tick = () => {
+      const remaining = Math.max(0, (auction.scheduledAt - Date.now()) / 1000);
+      setCountdown(remaining);
+
+      // Auto-start when countdown reaches 0 (admin only)
+      if (remaining <= 0 && isAdmin && !autoStartedRef.current) {
+        autoStartedRef.current = true;
+        import('./auction-actions').then(({ resumeTimer }) => {
+          // Resume the timer and clear the waiting flag
+          import('firebase/database').then(({ ref, update }) => {
+            import('./firebase').then(({ db }) => {
+              update(ref(db, `auctions/${auctionId}`), {
+                waitingForScheduledStart: false,
+                timerPaused: false,
+                timerEndsAt: Date.now() + (auction.timerDuration || 45) * 1000,
+                itemStartedAt: Date.now(),
+              });
+            });
+          });
+        });
+      }
+    };
+
+    tick();
+    const interval = setInterval(tick, 100);
+    return () => clearInterval(interval);
+  }, [auction?.status, auction?.waitingForScheduledStart, auction?.scheduledAt, auctionId, isAdmin]);
+
+  // Reset autoStarted when auctionId changes
+  useEffect(() => {
+    autoStartedRef.current = false;
+  }, [auctionId]);
+
+  return countdown;
+}
+
 export function useRegistration(auctionId: string | null, userId: string | null, autoRegister?: boolean, verificationStatus?: string) {
   const [registered, setRegistered] = useState(false);
   const [loading, setLoading] = useState(true);

@@ -33,44 +33,49 @@ export default function AdminAuctionsPage() {
       <div className="max-w-5xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold">ניהול מכרזים</h1>
-          <Link href="/admin/auctions/new" className="btn-accent px-4 py-2 rounded-lg text-sm">
+          <Link href="/admin/auctions/new" className="bg-accent hover:bg-accent-hover text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-smooth">
             + מכרז חדש
           </Link>
         </div>
 
         {loading ? (
           <LoadingSpinner />
+        ) : auctions.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="text-4xl mb-3 opacity-40">📋</div>
+            <p className="text-text-secondary">אין מכרזים עדיין</p>
+          </div>
         ) : (
           <div className="space-y-3">
             {auctions.map((auction) => (
-              <div key={auction.id} className="glass rounded-xl p-5 flex items-center justify-between">
-                <div>
+              <div key={auction.id} className="glass rounded-2xl p-5 flex items-center justify-between gap-4">
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-3 mb-1">
-                    <span className="font-bold">{auction.title}</span>
+                    <span className="font-bold text-lg truncate">{auction.title}</span>
                     <AuctionStatusBadge status={auction.status} />
                   </div>
-                  <div className="text-sm text-text-secondary">
+                  <div className="text-sm text-text-secondary truncate">
                     {auction.houseName} • {new Date(auction.scheduledAt).toLocaleDateString('he-IL')}{' '}
                     {new Date(auction.scheduledAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-shrink-0">
                   {(auction.status === 'published' || auction.status === 'draft') && (
-                    <button onClick={() => goLive(auction.id)} className="bg-live-dot text-white px-3 py-1.5 rounded-lg text-sm font-semibold">
+                    <button onClick={() => goLive(auction.id)} className="bg-live-dot hover:bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-smooth">
                       הפעל לייב
                     </button>
                   )}
                   {auction.status === 'live' && (
-                    <Link href="/admin/live" className="bg-live-dot text-white px-3 py-1.5 rounded-lg text-sm font-semibold animate-pulse">
+                    <Link href="/admin/live" className="bg-live-dot hover:bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-semibold animate-pulse transition-smooth">
                       פאנל כרוז
                     </Link>
                   )}
                   {auction.status === 'ended' && (
-                    <Link href={`/auctions/${auction.id}/results`} className="btn-dark px-3 py-1.5 rounded-lg text-sm">
+                    <Link href={`/auctions/${auction.id}/results`} className="bg-bg-elevated hover:bg-bg-surface text-white border border-border px-4 py-2 rounded-xl text-sm transition-smooth">
                       תוצאות
                     </Link>
                   )}
-                  <Link href={`/admin/auctions/${auction.id}`} className="btn-dark px-3 py-1.5 rounded-lg text-sm">
+                  <Link href={`/admin/auctions/${auction.id}`} className="bg-bg-elevated hover:bg-bg-surface text-white border border-border px-4 py-2 rounded-xl text-sm transition-smooth">
                     ערוך
                   </Link>
                 </div>

@@ -4,6 +4,7 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 
 const db = admin.database();
+const SERVER_TIMESTAMP = admin.database.ServerValue?.TIMESTAMP ?? { '.sv': 'timestamp' };
 
 export const advanceRoundOrItem = functions.region('europe-west1').https.onCall(async (data, context) => {
   // Auth gate — only admin or house_manager may advance
@@ -49,7 +50,7 @@ export const advanceRoundOrItem = functions.region('europe-west1').https.onCall(
       senderName: 'מערכת',
       senderRole: 'system',
       message: `עוברים לסיבוב ${nextRound} — מדרגת קפיצה: ₪${auction.settings[roundKey].increment.toLocaleString()}`,
-      timestamp: admin.database.ServerValue.TIMESTAMP,
+      timestamp: SERVER_TIMESTAMP,
     });
 
     return { action: 'advanced_round', round: nextRound };
@@ -66,7 +67,7 @@ export const advanceRoundOrItem = functions.region('europe-west1').https.onCall(
   if (sold) {
     await itemRef.update({
       status: 'sold',
-      soldAt: admin.database.ServerValue.TIMESTAMP,
+      soldAt: SERVER_TIMESTAMP,
       soldPrice: item.currentBid,
     });
     await db.ref(`/live_chat/${auctionId}`).push({
@@ -74,7 +75,7 @@ export const advanceRoundOrItem = functions.region('europe-west1').https.onCall(
       senderName: 'מערכת',
       senderRole: 'system',
       message: `הפריט "${item.title}" נמכר ב-₪${item.currentBid.toLocaleString()} ל-${item.currentBidderName}!`,
-      timestamp: admin.database.ServerValue.TIMESTAMP,
+      timestamp: SERVER_TIMESTAMP,
     });
   } else {
     await itemRef.update({ status: 'unsold' });
@@ -83,7 +84,7 @@ export const advanceRoundOrItem = functions.region('europe-west1').https.onCall(
       senderName: 'מערכת',
       senderRole: 'system',
       message: `הפריט "${item.title}" לא נמכר.`,
-      timestamp: admin.database.ServerValue.TIMESTAMP,
+      timestamp: SERVER_TIMESTAMP,
     });
   }
 
@@ -112,7 +113,7 @@ export const advanceRoundOrItem = functions.region('europe-west1').https.onCall(
       senderName: 'מערכת',
       senderRole: 'system',
       message: 'המכרז הסתיים! תודה לכל המשתתפים.',
-      timestamp: admin.database.ServerValue.TIMESTAMP,
+      timestamp: SERVER_TIMESTAMP,
     });
     return { action: 'ended' };
   }
@@ -136,7 +137,7 @@ export const advanceRoundOrItem = functions.region('europe-west1').https.onCall(
     senderName: 'מערכת',
     senderRole: 'system',
     message: `הפריט "${nextItem.title}" עלה לבמה!`,
-    timestamp: admin.database.ServerValue.TIMESTAMP,
+    timestamp: SERVER_TIMESTAMP,
   });
 
   return { action: 'next_item', itemId: nextItem.id };

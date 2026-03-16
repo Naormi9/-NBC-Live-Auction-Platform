@@ -34,6 +34,7 @@ export interface Auction {
   timerPaused?: boolean;
   remainingOnPause?: number;
   viewerCount: number;
+  waitingForScheduledStart?: boolean;
   settings: AuctionSettings;
 }
 
