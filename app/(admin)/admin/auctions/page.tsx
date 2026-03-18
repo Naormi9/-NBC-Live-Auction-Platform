@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { startAuctionLive } from '@/lib/auction-actions';
+import { startAuctionLive, deleteAuction } from '@/lib/auction-actions';
 import { useAllAuctions } from '@/lib/hooks';
 import { useAuth } from '@/lib/auth-context';
 import Navbar from '@/components/ui/Navbar';
@@ -24,6 +24,18 @@ export default function AdminAuctionsPage() {
       toast.success(msg);
     } catch (err: any) {
       toast.error(err.message || 'שגיאה בהפעלת המכרז');
+    }
+  };
+
+  const handleDelete = async (auctionId: string, title: string) => {
+    if (!window.confirm(`למחוק את המכרז "${title}"?\nפעולה זו תמחק את כל הפריטים, ההצעות והצ׳אט. לא ניתן לבטל.`)) {
+      return;
+    }
+    try {
+      const msg = await deleteAuction(auctionId);
+      toast.success(msg);
+    } catch (err: any) {
+      toast.error(err.message || 'שגיאה במחיקת המכרז');
     }
   };
 
@@ -78,6 +90,14 @@ export default function AdminAuctionsPage() {
                   <Link href={`/admin/auctions/${auction.id}`} className="bg-bg-elevated hover:bg-bg-surface text-white border border-border px-4 py-2 rounded-xl text-sm transition-smooth">
                     ערוך
                   </Link>
+                  {auction.status !== 'live' && (
+                    <button
+                      onClick={() => handleDelete(auction.id, auction.title)}
+                      className="bg-red-900/40 hover:bg-red-800/60 text-red-300 border border-red-800/50 px-4 py-2 rounded-xl text-sm transition-smooth"
+                    >
+                      מחק
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
