@@ -180,39 +180,45 @@ export default function LiveRoom() {
         </div>
       </div>
 
-      {/* Desktop Layout */}
-      <div className="hidden lg:grid grid-cols-[280px_1fr_280px] max-w-7xl mx-auto gap-4 p-4">
+      {/* Desktop Layout — single screen, no page scroll */}
+      <div className="hidden lg:grid grid-cols-[280px_1fr_280px] max-w-7xl mx-auto gap-4 p-4 h-[calc(100vh-56px)]">
         {/* Left Panel - Timer + Chat */}
-        <div className="space-y-4">
-          <AuctionTimer secondsLeft={secondsLeft} currentRound={auction.currentRound} scheduledCountdown={scheduledCountdown} />
-          <div className="glass rounded-xl p-3 h-[400px]">
+        <div className="flex flex-col gap-4 min-h-0">
+          <div className="flex-shrink-0">
+            <AuctionTimer secondsLeft={secondsLeft} currentRound={auction.currentRound} scheduledCountdown={scheduledCountdown} />
+          </div>
+          <div className="glass rounded-xl p-3 flex-1 min-h-0">
             <LiveChat auctionId={auction.id} messages={messages} registered={registered} />
           </div>
         </div>
 
         {/* Center Stage */}
-        <div className="space-y-4">
+        <div className="flex flex-col min-h-0">
           {item ? (
             <>
-              <CurrentItem item={item} totalItems={items.length} currentRound={auction.currentRound} increment={currentIncrement} />
-              {!registered && (
-                <RegisterPrompt auctionId={auction.id} isLoggedIn={!!user} />
-              )}
-              <BidButton auction={auction} item={item} registered={registered} />
-              <div className="glass rounded-xl p-4">
-                <h3 className="text-sm font-semibold text-text-secondary mb-2">היסטוריית הצעות</h3>
-                <BidHistory bids={bids} />
+              <div className="flex-1 overflow-y-auto min-h-0 space-y-3 pb-2">
+                <CurrentItem item={item} totalItems={items.length} currentRound={auction.currentRound} increment={currentIncrement} />
+                {!registered && (
+                  <RegisterPrompt auctionId={auction.id} isLoggedIn={!!user} />
+                )}
+                <div className="glass rounded-xl p-4">
+                  <h3 className="text-sm font-semibold text-text-secondary mb-2">היסטוריית הצעות</h3>
+                  <BidHistory bids={bids} />
+                </div>
+              </div>
+              <div className="flex-shrink-0 pt-2">
+                <BidButton auction={auction} item={item} registered={registered} />
               </div>
             </>
           ) : (
-            <div className="flex items-center justify-center h-64 text-text-secondary">
+            <div className="flex items-center justify-center flex-1 text-text-secondary">
               ממתין לפריט הבא...
             </div>
           )}
         </div>
 
         {/* Right Panel - Catalog */}
-        <div className="glass rounded-xl p-3">
+        <div className="glass rounded-xl p-3 overflow-y-auto min-h-0">
           <CatalogSidebar items={items} currentItemId={auction.currentItemId} />
         </div>
       </div>
@@ -220,7 +226,7 @@ export default function LiveRoom() {
       {/* Mobile Layout */}
       <div className="lg:hidden">
         {item ? (
-          <div className="space-y-3 pb-28">
+          <div className="space-y-2 pb-24">
             {/* Car image */}
             <CurrentItem item={item} totalItems={items.length} currentRound={auction.currentRound} increment={currentIncrement} />
 
@@ -231,7 +237,44 @@ export default function LiveRoom() {
               </div>
             )}
 
-            {/* Catalog navigation - mobile */}
+            {/* Catalog strip - horizontal scroll */}
+            <div className="px-4">
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {items.map((catItem) => (
+                  <div
+                    key={catItem.id}
+                    className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs
+                      ${catItem.id === auction.currentItemId
+                        ? 'bg-accent/20 border border-accent/30 text-white'
+                        : catItem.status === 'sold'
+                          ? 'bg-bid-price/10 text-bid-price'
+                          : 'bg-bg-elevated text-text-secondary'
+                      }`}
+                  >
+                    {catItem.order}. {catItem.title.split(' ').slice(0, 2).join(' ')}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Bid history */}
+            <div className="px-4">
+              <BidHistory bids={bids.slice(0, 3)} />
+            </div>
+
+            {/* Chat (collapsed by default on mobile) */}
+            <div className="px-4">
+              <details className="glass rounded-xl">
+                <summary className="p-3 text-sm font-semibold text-text-secondary cursor-pointer">
+                  צ&apos;אט חי ({messages.length} הודעות)
+                </summary>
+                <div className="p-3 pt-0 h-48">
+                  <LiveChat auctionId={auction.id} messages={messages} registered={registered} />
+                </div>
+              </details>
+            </div>
+
+            {/* Catalog navigation */}
             {auctionId && (
               <div className="px-4 flex gap-2">
                 <Link
@@ -250,43 +293,6 @@ export default function LiveRoom() {
                 </a>
               </div>
             )}
-
-            {/* Catalog strip - horizontal scroll */}
-            <div className="px-4">
-              <div className="flex gap-2 overflow-x-auto pb-2">
-                {items.map((catItem) => (
-                  <div
-                    key={catItem.id}
-                    className={`flex-shrink-0 px-3 py-2 rounded-lg text-xs
-                      ${catItem.id === auction.currentItemId
-                        ? 'bg-accent/20 border border-accent/30 text-white'
-                        : catItem.status === 'sold'
-                          ? 'bg-bid-price/10 text-bid-price'
-                          : 'bg-bg-elevated text-text-secondary'
-                      }`}
-                  >
-                    {catItem.order}. {catItem.title.split(' ').slice(0, 2).join(' ')}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Bid history */}
-            <div className="px-4">
-              <BidHistory bids={bids.slice(0, 5)} />
-            </div>
-
-            {/* Chat (collapsed by default on mobile) */}
-            <div className="px-4">
-              <details className="glass rounded-xl">
-                <summary className="p-3 text-sm font-semibold text-text-secondary cursor-pointer">
-                  צ&apos;אט חי ({messages.length} הודעות)
-                </summary>
-                <div className="p-3 pt-0 h-48">
-                  <LiveChat auctionId={auction.id} messages={messages} registered={registered} />
-                </div>
-              </details>
-            </div>
           </div>
         ) : (
           <div className="flex items-center justify-center h-64 text-text-secondary">

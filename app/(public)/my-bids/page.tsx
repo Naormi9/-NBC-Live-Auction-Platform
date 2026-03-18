@@ -53,87 +53,90 @@ export default function MyBidsPage() {
 
     const registrationsRef = ref(db, 'registrations');
     const unsub = onValue(registrationsRef, async (regSnap) => {
-      if (!regSnap.exists()) {
-        setBids([]);
-        setLoadingBids(false);
-        return;
-      }
-
-      const allRegs = regSnap.val() as Record<string, Record<string, any>>;
-      // Find auctions where this user is registered
-      const userAuctionIds: string[] = [];
-      for (const [auctionId, registrations] of Object.entries(allRegs)) {
-        if (registrations[user.uid]) {
-          userAuctionIds.push(auctionId);
+      try {
+        if (!regSnap.exists()) {
+          setBids([]);
+          return;
         }
-      }
 
-      if (userAuctionIds.length === 0) {
-        setBids([]);
-        setLoadingBids(false);
-        return;
-      }
+        const allRegs = regSnap.val() as Record<string, Record<string, any>>;
+        // Find auctions where this user is registered
+        const userAuctionIds: string[] = [];
+        for (const [auctionId, registrations] of Object.entries(allRegs)) {
+          if (registrations[user.uid]) {
+            userAuctionIds.push(auctionId);
+          }
+        }
 
-      const enrichedBids: EnrichedBid[] = [];
+        if (userAuctionIds.length === 0) {
+          setBids([]);
+          return;
+        }
 
-      // For each auction, fetch auction title + bid_history
-      await Promise.all(
-        userAuctionIds.map(async (auctionId) => {
-          try {
-            const [auctionSnap, bidHistorySnap] = await Promise.all([
-              get(ref(db, `auctions/${auctionId}`)),
-              get(ref(db, `bid_history/${auctionId}`)),
-            ]);
+        const enrichedBids: EnrichedBid[] = [];
 
-            const auctionTitle = auctionSnap.exists()
-              ? (auctionSnap.val().title as string)
-              : auctionId;
+        // For each auction, fetch auction title + bid_history
+        await Promise.all(
+          userAuctionIds.map(async (auctionId) => {
+            try {
+              const [auctionSnap, bidHistorySnap] = await Promise.all([
+                get(ref(db, `auctions/${auctionId}`)),
+                get(ref(db, `bid_history/${auctionId}`)),
+              ]);
 
-            if (!bidHistorySnap.exists()) return;
+              const auctionTitle = auctionSnap.exists()
+                ? (auctionSnap.val().title as string)
+                : auctionId;
 
-            const itemsData = bidHistorySnap.val() as Record<
-              string,
-              Record<string, BidHistoryEntry>
-            >;
+              if (!bidHistorySnap.exists()) return;
 
-            for (const [itemId, entries] of Object.entries(itemsData)) {
-              for (const entry of Object.values(entries)) {
-                if (entry.userId === user.uid) {
-                  // Fetch item title
-                  let itemTitle = itemId;
-                  try {
-                    const itemSnap = await get(
-                      ref(db, `auction_items/${itemId}/title`)
-                    );
-                    if (itemSnap.exists()) {
-                      itemTitle = itemSnap.val() as string;
+              const itemsData = bidHistorySnap.val() as Record<
+                string,
+                Record<string, BidHistoryEntry>
+              >;
+
+              for (const [itemId, entries] of Object.entries(itemsData)) {
+                for (const entry of Object.values(entries)) {
+                  if (entry.userId === user.uid) {
+                    // Fetch item title
+                    let itemTitle = itemId;
+                    try {
+                      const itemSnap = await get(
+                        ref(db, `auction_items/${itemId}/title`)
+                      );
+                      if (itemSnap.exists()) {
+                        itemTitle = itemSnap.val() as string;
+                      }
+                    } catch {
+                      // keep itemId as fallback
                     }
-                  } catch {
-                    // keep itemId as fallback
-                  }
 
-                  enrichedBids.push({
-                    auctionId,
-                    auctionTitle,
-                    itemId,
-                    itemTitle,
-                    amount: entry.amount,
-                    round: entry.round,
-                    timestamp: entry.timestamp,
-                  });
+                    enrichedBids.push({
+                      auctionId,
+                      auctionTitle,
+                      itemId,
+                      itemTitle,
+                      amount: entry.amount,
+                      round: entry.round,
+                      timestamp: entry.timestamp,
+                    });
+                  }
                 }
               }
+            } catch {
+              // skip auction on error
             }
-          } catch {
-            // skip auction on error
-          }
-        })
-      );
+          })
+        );
 
-      // Sort by timestamp descending (most recent first)
-      enrichedBids.sort((a, b) => b.timestamp - a.timestamp);
-      setBids(enrichedBids);
-      setLoadingBids(false);
+        // Sort by timestamp descending (most recent first)
+        enrichedBids.sort((a, b) => b.timestamp - a.timestamp);
+        setBids(enrichedBids);
+      } catch {
+        setBids([]);
+      } finally {
+        setLoadingBids(false);
+      }
     });
 
     return () => unsub();
@@ -145,48 +148,52 @@ export default function MyBidsPage() {
 
     const itemsRef = ref(db, 'auction_items');
     const unsub = onValue(itemsRef, async (snap) => {
-      if (!snap.exists()) {
-        setWins([]);
-        setLoadingWins(false);
-        return;
-      }
-
-      // Items are stored flat: auction_items/{itemId} with auctionId field
-      const allItems = snap.val() as Record<string, any>;
-      const enrichedWins: EnrichedWin[] = [];
-
-      // Cache auction titles
-      const auctionTitleCache: Record<string, string> = {};
-
-      for (const [itemId, item] of Object.entries(allItems)) {
-        if (item.currentBidderId === user.uid && item.status === 'sold') {
-          const auctionId = item.auctionId;
-          if (!auctionId) continue;
-          // Fetch auction title if not cached
-          if (!auctionTitleCache[auctionId]) {
-            try {
-              const auctionSnap = await get(ref(db, `auctions/${auctionId}/title`));
-              auctionTitleCache[auctionId] = auctionSnap.exists()
-                ? (auctionSnap.val() as string)
-                : auctionId;
-            } catch {
-              auctionTitleCache[auctionId] = auctionId;
-            }
-          }
-
-          enrichedWins.push({
-            auctionId,
-            auctionTitle: auctionTitleCache[auctionId],
-            itemId,
-            itemTitle: item.title,
-            soldPrice: item.soldPrice || item.currentBid,
-            status: item.status,
-          });
+      try {
+        if (!snap.exists()) {
+          setWins([]);
+          return;
         }
-      }
 
-      setWins(enrichedWins);
-      setLoadingWins(false);
+        // Items are stored flat: auction_items/{itemId} with auctionId field
+        const allItems = snap.val() as Record<string, any>;
+        const enrichedWins: EnrichedWin[] = [];
+
+        // Cache auction titles
+        const auctionTitleCache: Record<string, string> = {};
+
+        for (const [itemId, item] of Object.entries(allItems)) {
+          if (item.currentBidderId === user.uid && item.status === 'sold') {
+            const auctionId = item.auctionId;
+            if (!auctionId) continue;
+            // Fetch auction title if not cached
+            if (!auctionTitleCache[auctionId]) {
+              try {
+                const auctionSnap = await get(ref(db, `auctions/${auctionId}/title`));
+                auctionTitleCache[auctionId] = auctionSnap.exists()
+                  ? (auctionSnap.val() as string)
+                  : auctionId;
+              } catch {
+                auctionTitleCache[auctionId] = auctionId;
+              }
+            }
+
+            enrichedWins.push({
+              auctionId,
+              auctionTitle: auctionTitleCache[auctionId],
+              itemId,
+              itemTitle: item.title,
+              soldPrice: item.soldPrice || item.currentBid,
+              status: item.status,
+            });
+          }
+        }
+
+        setWins(enrichedWins);
+      } catch {
+        setWins([]);
+      } finally {
+        setLoadingWins(false);
+      }
     });
 
     return () => unsub();

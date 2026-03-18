@@ -379,6 +379,38 @@ export async function endAuction(auctionId: string): Promise<string> {
   return 'המכרז הסתיים';
 }
 
+// ─── Delete Auction ─────────────────────────────────────────
+export async function deleteAuction(auctionId: string): Promise<string> {
+  const auctionSnap = await get(ref(db, `auctions/${auctionId}`));
+  if (!auctionSnap.exists()) throw new Error('מכרז לא נמצא');
+  const auction = auctionSnap.val();
+  if (auction.status === 'live') throw new Error('לא ניתן למחוק מכרז חי');
+
+  // Find all items belonging to this auction
+  const itemsQuery = query(ref(db, 'auction_items'), orderByChild('auctionId'), equalTo(auctionId));
+  const itemsSnap = await get(itemsQuery);
+  const itemIds = itemsSnap.exists() ? Object.keys(itemsSnap.val()) : [];
+
+  // Build multi-path delete
+  const updates: Record<string, null> = {
+    [`auctions/${auctionId}`]: null,
+    [`bid_history/${auctionId}`]: null,
+    [`pre_bids/${auctionId}`]: null,
+    [`live_chat/${auctionId}`]: null,
+    [`registrations/${auctionId}`]: null,
+    [`timer_locks/${auctionId}`]: null,
+    [`presence/${auctionId}`]: null,
+  };
+
+  // Delete each item
+  for (const itemId of itemIds) {
+    updates[`auction_items/${itemId}`] = null;
+  }
+
+  await update(ref(db), updates);
+  return 'המכרז נמחק בהצלחה';
+}
+
 // ─── Auto-Advance Logic (client-side timer expiry handling) ──
 // Called when timer reaches 0. Implements the same logic as
 // Cloud Function timerTick but runs on the client.
