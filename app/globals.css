@@ -3,20 +3,36 @@
 @tailwind utilities;
 
 :root {
-  --bg-primary: #080F0F;
-  --bg-surface: #0E1515;
-  --bg-elevated: #1A1F2E;
-  --accent: #433BFF;
-  --accent-hover: #3730D9;
-  --accent-light: #89A6FB;
+  /* Backgrounds - Rich dark with teal undertones */
+  --bg-primary: #070E10;
+  --bg-surface: #0C1416;
+  --bg-elevated: #151D22;
+  --bg-hover: #1A252B;
+
+  /* Accent — warm gold for auction prestige */
+  --accent: #D4A853;
+  --accent-hover: #C4982F;
+  --accent-light: #E8C97A;
+  --accent-muted: rgba(212, 168, 83, 0.15);
+
+  /* Functional colors */
   --bid-price: #00D4AA;
-  --text-primary: #FFFFFF;
-  --text-secondary: #A0A0A0;
-  --timer-green: #22C55E;
-  --timer-orange: #F97316;
-  --timer-red: #EF4444;
-  --live-dot: #EF4444;
-  --border: rgba(255, 255, 255, 0.08);
+  --text-primary: #F0F0F0;
+  --text-secondary: #8A9BA8;
+  --timer-green: #34D399;
+  --timer-orange: #FB923C;
+  --timer-red: #F43F5E;
+  --live-dot: #F43F5E;
+
+  /* Borders */
+  --border: rgba(255, 255, 255, 0.07);
+  --border-hover: rgba(255, 255, 255, 0.14);
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-accent: 0 4px 20px rgba(212, 168, 83, 0.25);
 }
 
 * {
@@ -32,114 +48,269 @@ html {
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  font-family: 'Heebo', sans-serif;
+  font-family: var(--font-heebo), 'Heebo', sans-serif;
 }
 
-/* Scrollbar */
+/* ── Typography scale ── */
+.text-display {
+  font-family: var(--font-rubik), 'Rubik', sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.text-heading {
+  font-family: var(--font-rubik), 'Rubik', sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.text-mono-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+/* ── Scrollbar ── */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--bg-surface);
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.1);
   border-radius: 3px;
 }
-
-/* Glass morphism utility */
-.glass {
-  background: rgba(14, 21, 21, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--border);
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 
-/* Brand gradient */
+/* ── Glass morphism ── */
+.glass {
+  background: rgba(12, 20, 22, 0.8);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.glass-elevated {
+  background: rgba(21, 29, 34, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-hover);
+  box-shadow: var(--shadow-md);
+}
+
+/* ── Brand gradient — warm gold ── */
 .brand-gradient {
-  background: linear-gradient(135deg, #433BFF, #89A6FB);
+  background: linear-gradient(135deg, #D4A853 0%, #E8C97A 50%, #C4982F 100%);
 }
 
 .brand-gradient-text {
-  background: linear-gradient(135deg, #433BFF, #89A6FB);
+  background: linear-gradient(135deg, #D4A853 0%, #E8C97A 60%, #F0D78C 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
-/* Bid price highlight */
+/* ── Bid price highlight ── */
 .bid-amount {
   color: var(--bid-price);
   font-weight: 700;
   font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
 }
 
-/* Live dot animation */
+/* ── Live dot animation ── */
 .live-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background-color: var(--live-dot);
-  animation: blink 1s step-end infinite;
+  animation: blink 1.2s ease-in-out infinite;
+  box-shadow: 0 0 6px var(--live-dot);
 }
 
 @keyframes blink {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
+  50% { opacity: 0.2; }
 }
 
-/* Timer pulse */
+/* ── Timer pulse ── */
 .timer-pulse {
   animation: timerPulse 0.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 @keyframes timerPulse {
   0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
+  50% { transform: scale(1.04); }
 }
 
-/* Stronger timer pulse for last 5 seconds */
 .timer-pulse-strong {
-  animation: timerPulseStrong 0.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  animation: timerPulseStrong 0.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 @keyframes timerPulseStrong {
   0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.08); }
+  50% { transform: scale(1.07); }
 }
 
-/* Skeleton shimmer */
+/* ── Skeleton shimmer ── */
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
 
 .skeleton {
-  background: linear-gradient(90deg, var(--bg-elevated) 25%, rgba(67, 59, 255, 0.06) 50%, var(--bg-elevated) 75%);
+  background: linear-gradient(90deg, var(--bg-elevated) 25%, rgba(212, 168, 83, 0.04) 50%, var(--bg-elevated) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
   border-radius: 0.5rem;
 }
 
-/* Smooth transitions */
+/* ── Page entrance animations ── */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes countPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); color: var(--accent); }
+  100% { transform: scale(1); }
+}
+
+@keyframes bidFlash {
+  0% { background-color: rgba(0, 212, 170, 0.2); }
+  100% { background-color: transparent; }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease-out both;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out both;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.4s ease-out both;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.5s ease-out both;
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.5s ease-out both;
+}
+
+.animate-count-pulse {
+  animation: countPulse 0.4s ease-out;
+}
+
+.animate-bid-flash {
+  animation: bidFlash 0.8s ease-out;
+}
+
+/* Stagger children animations */
+.stagger-children > * {
+  opacity: 0;
+  animation: fadeInUp 0.4s ease-out both;
+}
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 60ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 120ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 180ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 240ms; }
+.stagger-children > *:nth-child(6) { animation-delay: 300ms; }
+.stagger-children > *:nth-child(7) { animation-delay: 360ms; }
+.stagger-children > *:nth-child(8) { animation-delay: 420ms; }
+
+/* ── Smooth transitions ── */
 .transition-smooth {
   transition: all 200ms ease;
 }
 
-/* Button base */
+.transition-colors-fast {
+  transition: color 300ms ease, background-color 300ms ease, border-color 300ms ease;
+}
+
+/* ── Buttons ── */
 .btn {
   @apply px-6 py-3 rounded-lg font-semibold text-sm transition-smooth cursor-pointer;
 }
 
 .btn-accent {
-  @apply bg-accent hover:bg-accent-hover text-white;
+  @apply bg-accent hover:bg-accent-hover text-bg-primary font-bold;
 }
 
 .btn-dark {
-  @apply bg-bg-elevated hover:bg-bg-surface text-white border border-border;
+  @apply bg-bg-elevated hover:bg-bg-hover text-white border border-border hover:border-border-hover;
 }
 
-/* Number input hide arrows */
+/* ── Focus ring for accessibility ── */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+input:focus-visible,
+button:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── Number input hide arrows ── */
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
   -webkit-appearance: none;
@@ -147,4 +318,21 @@ input[type="number"]::-webkit-inner-spin-button {
 }
 input[type="number"] {
   -moz-appearance: textfield;
+}
+
+/* ── Noise texture overlay (subtle) ── */
+.noise-bg::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Selection ── */
+::selection {
+  background-color: rgba(212, 168, 83, 0.3);
+  color: #fff;
 }

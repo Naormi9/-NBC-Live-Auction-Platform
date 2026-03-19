@@ -6,6 +6,7 @@ import { ref, set, onValue, serverTimestamp } from 'firebase/database';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { useAuction, useCatalog, useRegistration } from '@/lib/hooks';
+import Image from 'next/image';
 import Navbar from '@/components/ui/Navbar';
 import { AuctionStatusBadge, ItemStatusBadge } from '@/components/ui/StatusBadge';
 import { formatPrice } from '@/lib/auction-utils';
@@ -174,9 +175,9 @@ export default function AuctionCatalogPage() {
           {items.map((item) => (
             <div key={item.id} className="glass rounded-xl overflow-hidden">
               {/* Image */}
-              <div className="aspect-video bg-bg-elevated flex items-center justify-center">
+              <div className="aspect-video bg-bg-elevated relative flex items-center justify-center">
                 {item.images?.[0] ? (
-                  <img src={item.images[0]} alt={item.title} className="w-full h-full object-cover" />
+                  <Image src={item.images[0]} alt={item.title} fill className="object-cover" sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw" />
                 ) : (
                   <div className="text-text-secondary text-sm">{item.make} {item.model}</div>
                 )}

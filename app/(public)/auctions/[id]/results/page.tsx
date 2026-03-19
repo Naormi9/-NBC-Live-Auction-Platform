@@ -132,7 +132,7 @@ export default function AuctionResultsPage() {
 function StatCard({ label, value, color = 'text-white' }: { label: string; value: string; color?: string }) {
   return (
     <div className="glass rounded-xl p-4 text-center">
-      <div className={`text-2xl font-black ${color}`}>{value}</div>
+      <div className={`text-2xl font-black text-mono-nums ${color}`}>{value}</div>
       <div className="text-sm text-text-secondary mt-1">{label}</div>
     </div>
   );

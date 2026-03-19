@@ -3,7 +3,10 @@
 /**
  * Brand logo for מכרזי מיכאלי מוטורס
  * Renders inline SVG for crisp display at any size.
+ * Uses unique gradient IDs to avoid conflicts when multiple instances render.
  */
+
+import { useId } from 'react';
 
 interface LogoIconProps {
   size?: number;
@@ -12,6 +15,7 @@ interface LogoIconProps {
 
 /** Icon-only gavel mark */
 export function LogoIcon({ size = 32, className }: LogoIconProps) {
+  const gradId = useId();
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -20,17 +24,18 @@ export function LogoIcon({ size = 32, className }: LogoIconProps) {
       height={size}
       className={className}
       aria-label="מכרזי מיכאלי מוטורס"
+      role="img"
     >
-      <rect x="82" y="42" width="108" height="138" rx="4" fill="url(#logoIconGrad)" />
+      <rect x="82" y="42" width="108" height="138" rx="4" fill={`url(#${gradId})`} />
       <rect x="18" y="14" width="124" height="124" rx="4" fill="#111111" />
       <g transform="translate(96 82) rotate(-45)">
         <rect x="-34" y="-15" width="68" height="30" rx="3" fill="white" />
         <rect x="8" y="15" width="13" height="76" rx="3" fill="white" />
       </g>
       <defs>
-        <linearGradient id="logoIconGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#6B6EFF" />
-          <stop offset="100%" stopColor="#89A6FB" />
+        <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#D4A853" />
+          <stop offset="100%" stopColor="#E8C97A" />
         </linearGradient>
       </defs>
     </svg>
@@ -61,6 +66,7 @@ export function LogoFull({ height = 40, className, tm = false }: LogoFullProps) 
           <span
             className="absolute text-accent-light font-bold"
             style={{ top: 0, left: 0, fontSize: height * 0.16 }}
+            aria-hidden="true"
           >
             TM
           </span>

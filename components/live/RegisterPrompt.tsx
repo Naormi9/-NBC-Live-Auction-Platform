@@ -19,7 +19,7 @@ export default function RegisterPrompt({ auctionId, isLoggedIn }: RegisterPrompt
   // Logged in but pending approval — clear status message
   if (isLoggedIn && profile?.verificationStatus === 'pending_approval') {
     return (
-      <div className="glass rounded-xl p-4 text-center space-y-2 border border-yellow-500/30">
+      <div className="glass rounded-xl p-4 text-center space-y-2 border border-yellow-500/20 animate-fade-in" role="alert">
         <p className="text-sm font-semibold text-yellow-400">החשבון שלך ממתין לאישור</p>
         <p className="text-xs text-text-secondary">נציג יאשר את חשבונך בקרוב. תוכל להציע ברגע שתאושר.</p>
         <p className="text-[10px] text-text-secondary/50">העמוד יתעדכן אוטומטית — אין צורך לרענן</p>
@@ -30,7 +30,7 @@ export default function RegisterPrompt({ auctionId, isLoggedIn }: RegisterPrompt
   // Logged in but pending verification — CTA to complete verification
   if (isLoggedIn && profile?.verificationStatus === 'pending_verification') {
     return (
-      <div className="glass rounded-xl p-4 text-center space-y-3 border border-accent/30">
+      <div className="glass rounded-xl p-4 text-center space-y-3 border border-accent/20 animate-fade-in" role="alert">
         <p className="text-sm font-semibold">יש להשלים אימות חשבון כדי להשתתף</p>
         <p className="text-xs text-text-secondary">השלם את האימות ונציג יאשר את חשבונך</p>
         <Link
@@ -46,8 +46,8 @@ export default function RegisterPrompt({ auctionId, isLoggedIn }: RegisterPrompt
   // Logged in but rejected
   if (isLoggedIn && profile?.verificationStatus === 'rejected') {
     return (
-      <div className="glass rounded-xl p-4 text-center space-y-2 border border-red-500/30">
-        <p className="text-sm font-semibold text-red-400">החשבון שלך נדחה</p>
+      <div className="glass rounded-xl p-4 text-center space-y-2 border border-timer-red/20 animate-fade-in" role="alert">
+        <p className="text-sm font-semibold text-timer-red">החשבון שלך נדחה</p>
         <p className="text-xs text-text-secondary">פנה לתמיכה לבירור: office@m-motors.co.il</p>
       </div>
     );
@@ -55,7 +55,7 @@ export default function RegisterPrompt({ auctionId, isLoggedIn }: RegisterPrompt
 
   // Not logged in — direct to full registration page with redirect back to live
   return (
-    <div className="glass rounded-xl p-4 text-center space-y-3 border border-accent/30">
+    <div className="glass rounded-xl p-4 text-center space-y-3 border border-accent/20 animate-fade-in">
       <p className="text-sm font-semibold">
         הירשם כדי להשתתף במכרז
       </p>

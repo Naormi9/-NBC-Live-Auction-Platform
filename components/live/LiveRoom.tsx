@@ -127,7 +127,10 @@ export default function LiveRoom() {
   if (liveLoading || itemLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="lg" />
+        <div className="text-center space-y-4 animate-fade-in">
+          <LoadingSpinner size="lg" />
+          <p className="text-text-secondary text-sm">מתחבר לשידור...</p>
+        </div>
       </div>
     );
   }
@@ -137,10 +140,13 @@ export default function LiveRoom() {
 
   if (!auctionId || !auction) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 animate-fade-in-up">
         <div className="text-6xl">📡</div>
-        <h1 className="text-2xl font-bold">אין מכרז חי כרגע</h1>
+        <h1 className="text-2xl text-heading">אין מכרז חי כרגע</h1>
         <p className="text-text-secondary">המכרז הבא יתחיל בקרוב. הישארו מעודכנים!</p>
+        <Link href="/auctions" className="btn-accent px-6 py-3 rounded-xl mt-2">
+          צפו במכרזים קרובים
+        </Link>
       </div>
     );
   }
@@ -148,7 +154,7 @@ export default function LiveRoom() {
   return (
     <div className="min-h-screen bg-bg-primary">
       {/* Header */}
-      <div className="glass sticky top-0 z-40 border-b border-border">
+      <header className="glass sticky top-0 z-40 border-b border-border">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <LogoCompact height={24} />
@@ -156,12 +162,12 @@ export default function LiveRoom() {
             <span className="text-sm text-text-secondary hidden md:inline">{auction.title}</span>
           </div>
           <div className="flex items-center gap-3 text-text-secondary text-sm">
-            <span>👁 {viewerCount} צופים</span>
+            <span aria-label={`${viewerCount} צופים`}>👁 {viewerCount} צופים</span>
             {auctionId && (
               <>
                 <Link
                   href={`/auctions/${auctionId}`}
-                  className="hidden md:inline px-2 py-1 text-xs bg-bg-elevated hover:bg-white/10 rounded-lg transition-smooth"
+                  className="hidden md:inline px-2.5 py-1.5 text-xs bg-bg-elevated hover:bg-bg-hover rounded-lg transition-smooth border border-transparent hover:border-border"
                 >
                   חזרה לקטלוג
                 </Link>
@@ -169,7 +175,7 @@ export default function LiveRoom() {
                   href={`/auctions/${auctionId}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="hidden md:inline px-2 py-1 text-xs bg-bg-elevated hover:bg-white/10 rounded-lg transition-smooth"
+                  className="hidden md:inline px-2.5 py-1.5 text-xs bg-bg-elevated hover:bg-bg-hover rounded-lg transition-smooth border border-transparent hover:border-border"
                 >
                   קטלוג בטאב חדש ↗
                 </a>
@@ -177,20 +183,20 @@ export default function LiveRoom() {
             )}
           </div>
         </div>
-      </div>
+      </header>
 
       {/* Desktop Layout */}
-      <div className="hidden lg:grid grid-cols-[280px_1fr_280px] max-w-7xl mx-auto gap-4 p-4">
+      <main className="hidden lg:grid grid-cols-[280px_1fr_280px] max-w-7xl mx-auto gap-4 p-4">
         {/* Left Panel - Timer + Chat */}
-        <div className="space-y-4">
+        <aside className="space-y-4 animate-slide-in-left" style={{ animationDelay: '100ms' }}>
           <AuctionTimer secondsLeft={secondsLeft} currentRound={auction.currentRound} />
           <div className="glass rounded-xl p-3 h-[400px]">
             <LiveChat auctionId={auction.id} messages={messages} registered={registered} />
           </div>
-        </div>
+        </aside>
 
         {/* Center Stage */}
-        <div className="space-y-4">
+        <section className="space-y-4" aria-label="פריט נוכחי">
           {item ? (
             <>
               <CurrentItem item={item} totalItems={items.length} currentRound={auction.currentRound} increment={currentIncrement} />
@@ -204,20 +210,20 @@ export default function LiveRoom() {
               </div>
             </>
           ) : (
-            <div className="flex items-center justify-center h-64 text-text-secondary">
+            <div className="flex items-center justify-center h-64 text-text-secondary animate-pulse">
               ממתין לפריט הבא...
             </div>
           )}
-        </div>
+        </section>
 
         {/* Right Panel - Catalog */}
-        <div className="glass rounded-xl p-3">
+        <aside className="glass rounded-xl p-3 animate-slide-in-right" style={{ animationDelay: '100ms' }}>
           <CatalogSidebar items={items} currentItemId={auction.currentItemId} />
-        </div>
-      </div>
+        </aside>
+      </main>
 
       {/* Mobile Layout */}
-      <div className="lg:hidden">
+      <main className="lg:hidden" aria-label="תצוגת מובייל">
         {item ? (
           <div className="space-y-3 pb-28">
             {/* Car image */}
@@ -235,7 +241,7 @@ export default function LiveRoom() {
               <div className="px-4 flex gap-2">
                 <Link
                   href={`/auctions/${auctionId}`}
-                  className="text-xs px-3 py-1.5 bg-bg-elevated hover:bg-white/10 rounded-lg transition-smooth text-text-secondary"
+                  className="text-xs px-3 py-1.5 bg-bg-elevated hover:bg-bg-hover rounded-lg transition-smooth text-text-secondary border border-transparent hover:border-border"
                 >
                   חזרה לקטלוג
                 </Link>
@@ -243,7 +249,7 @@ export default function LiveRoom() {
                   href={`/auctions/${auctionId}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs px-3 py-1.5 bg-bg-elevated hover:bg-white/10 rounded-lg transition-smooth text-text-secondary"
+                  className="text-xs px-3 py-1.5 bg-bg-elevated hover:bg-bg-hover rounded-lg transition-smooth text-text-secondary border border-transparent hover:border-border"
                 >
                   קטלוג בטאב חדש ↗
                 </a>
@@ -252,13 +258,14 @@ export default function LiveRoom() {
 
             {/* Catalog strip - horizontal scroll */}
             <div className="px-4">
-              <div className="flex gap-2 overflow-x-auto pb-2">
+              <div className="flex gap-2 overflow-x-auto pb-2" role="list" aria-label="פריטי קטלוג">
                 {items.map((catItem) => (
                   <div
                     key={catItem.id}
-                    className={`flex-shrink-0 px-3 py-2 rounded-lg text-xs
+                    role="listitem"
+                    className={`flex-shrink-0 px-3 py-2 rounded-lg text-xs transition-smooth
                       ${catItem.id === auction.currentItemId
-                        ? 'bg-accent/20 border border-accent/30 text-white'
+                        ? 'bg-accent-muted border border-accent/25 text-white'
                         : catItem.status === 'sold'
                           ? 'bg-bid-price/10 text-bid-price'
                           : 'bg-bg-elevated text-text-secondary'
@@ -278,7 +285,7 @@ export default function LiveRoom() {
             {/* Chat (collapsed by default on mobile) */}
             <div className="px-4">
               <details className="glass rounded-xl">
-                <summary className="p-3 text-sm font-semibold text-text-secondary cursor-pointer">
+                <summary className="p-3 text-sm font-semibold text-text-secondary cursor-pointer hover:text-white transition-smooth">
                   צ&apos;אט חי ({messages.length} הודעות)
                 </summary>
                 <div className="p-3 pt-0 h-48">
@@ -288,14 +295,14 @@ export default function LiveRoom() {
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-center h-64 text-text-secondary">
+          <div className="flex items-center justify-center h-64 text-text-secondary animate-pulse">
             ממתין לפריט הבא...
           </div>
         )}
 
         {/* Mobile sticky bottom bar */}
         {item && (
-          <div className="fixed bottom-0 left-0 right-0 glass border-t border-border p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-center gap-3 z-50">
+          <div className="fixed bottom-0 left-0 right-0 glass-elevated border-t border-border p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-center gap-3 z-50">
             <div className="flex-shrink-0">
               <AuctionTimer secondsLeft={secondsLeft} currentRound={auction.currentRound} />
             </div>
@@ -304,7 +311,7 @@ export default function LiveRoom() {
             </div>
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }

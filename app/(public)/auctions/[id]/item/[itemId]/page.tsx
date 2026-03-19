@@ -6,6 +6,7 @@ import { ref, onValue } from 'firebase/database';
 import { db } from '@/lib/firebase';
 import { AuctionItem } from '@/lib/types';
 import { formatPrice } from '@/lib/auction-utils';
+import Image from 'next/image';
 import Navbar from '@/components/ui/Navbar';
 import { ItemStatusBadge } from '@/components/ui/StatusBadge';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
@@ -35,9 +36,9 @@ export default function ItemDetailPage() {
       <Navbar />
       <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
         {/* Images */}
-        <div className="aspect-video bg-bg-elevated rounded-xl overflow-hidden">
+        <div className="aspect-video bg-bg-elevated rounded-xl overflow-hidden relative">
           {item.images?.[0] ? (
-            <img src={item.images[0]} alt={item.title} className="w-full h-full object-cover" />
+            <Image src={item.images[0]} alt={item.title} fill className="object-cover" sizes="(max-width: 768px) 100vw, 768px" priority />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-text-secondary">
               {item.make} {item.model} {item.year}

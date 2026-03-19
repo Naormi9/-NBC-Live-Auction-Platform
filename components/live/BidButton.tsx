@@ -28,7 +28,10 @@ export default function BidButton({ auction, item, registered }: BidButtonProps)
 
   if (!user) {
     return (
-      <Link href="/login?redirect=/live" className="block w-full py-4 rounded-xl bg-bg-elevated text-center text-accent font-semibold text-lg hover:bg-bg-elevated/80 transition-smooth">
+      <Link
+        href="/login?redirect=/live"
+        className="block w-full py-4 rounded-xl bg-bg-elevated text-center text-accent font-semibold text-lg hover:bg-bg-hover transition-smooth border border-border"
+      >
         התחבר כדי להשתתף
       </Link>
     );
@@ -36,7 +39,10 @@ export default function BidButton({ auction, item, registered }: BidButtonProps)
 
   if (profile?.verificationStatus === 'pending_verification') {
     return (
-      <Link href="/verify" className="block w-full py-4 rounded-xl bg-accent/20 text-center text-accent font-semibold text-lg border border-accent/30 hover:bg-accent/30 transition-smooth">
+      <Link
+        href="/verify"
+        className="block w-full py-4 rounded-xl bg-accent-muted text-center text-accent font-semibold text-lg border border-accent/30 hover:bg-accent/20 transition-smooth"
+      >
         השלם אימות כדי להציע
       </Link>
     );
@@ -44,7 +50,11 @@ export default function BidButton({ auction, item, registered }: BidButtonProps)
 
   if (profile?.verificationStatus === 'pending_approval') {
     return (
-      <button disabled className="w-full py-4 rounded-xl bg-yellow-500/10 text-yellow-400 font-semibold text-lg cursor-not-allowed border border-yellow-500/20">
+      <button
+        disabled
+        className="w-full py-4 rounded-xl bg-yellow-500/10 text-yellow-400 font-semibold text-lg cursor-not-allowed border border-yellow-500/20"
+        aria-disabled="true"
+      >
         החשבון ממתין לאישור
       </button>
     );
@@ -52,7 +62,11 @@ export default function BidButton({ auction, item, registered }: BidButtonProps)
 
   if (profile?.verificationStatus === 'rejected') {
     return (
-      <button disabled className="w-full py-4 rounded-xl bg-red-500/10 text-red-400 font-semibold text-lg cursor-not-allowed border border-red-500/20">
+      <button
+        disabled
+        className="w-full py-4 rounded-xl bg-timer-red/10 text-timer-red font-semibold text-lg cursor-not-allowed border border-timer-red/20"
+        aria-disabled="true"
+      >
         החשבון נדחה — פנה לתמיכה
       </button>
     );
@@ -60,7 +74,11 @@ export default function BidButton({ auction, item, registered }: BidButtonProps)
 
   if (!registered) {
     return (
-      <button disabled className="w-full py-4 rounded-xl bg-bg-elevated text-text-secondary font-semibold text-lg cursor-not-allowed">
+      <button
+        disabled
+        className="w-full py-4 rounded-xl bg-bg-elevated text-text-secondary font-semibold text-lg cursor-not-allowed"
+        aria-disabled="true"
+      >
         ממתין לרישום...
       </button>
     );
@@ -68,7 +86,11 @@ export default function BidButton({ auction, item, registered }: BidButtonProps)
 
   if (auction.status === 'ended' || item.status === 'sold' || item.status === 'unsold') {
     return (
-      <button disabled className="w-full py-4 rounded-xl bg-bg-elevated text-text-secondary font-semibold text-lg cursor-not-allowed">
+      <button
+        disabled
+        className="w-full py-4 rounded-xl bg-bg-elevated text-text-secondary font-semibold text-lg cursor-not-allowed"
+        aria-disabled="true"
+      >
         {item.status === 'sold' ? 'הפריט נמכר' : item.status === 'unsold' ? 'הפריט לא נמכר' : 'המכרז הסתיים'}
       </button>
     );
@@ -76,8 +98,18 @@ export default function BidButton({ auction, item, registered }: BidButtonProps)
 
   if (item.currentBidderId === user.uid) {
     return (
-      <button disabled className="w-full py-4 rounded-xl bg-bid-price/20 text-bid-price font-semibold text-lg cursor-not-allowed border border-bid-price/30">
-        אתה המציע המוביל ✓
+      <button
+        disabled
+        className="w-full py-4 rounded-xl bg-bid-price/15 text-bid-price font-semibold text-lg cursor-default border border-bid-price/25 shadow-glow-bid animate-scale-in"
+        aria-disabled="true"
+        aria-label="אתה המציע המוביל"
+      >
+        <span className="flex items-center justify-center gap-2">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" fill="currentColor"/>
+          </svg>
+          אתה המציע המוביל
+        </span>
       </button>
     );
   }
@@ -123,12 +155,20 @@ export default function BidButton({ auction, item, registered }: BidButtonProps)
     <button
       onClick={handleBid}
       disabled={submitting}
+      aria-label={`הצע ${formatPrice(nextBid)}`}
       className={`w-full py-5 rounded-xl font-black text-xl transition-smooth
-        brand-gradient shadow-lg shadow-[#433BFF]/30
-        active:scale-[0.98] transition-transform
-        text-white disabled:opacity-50`}
+        brand-gradient shadow-glow-accent
+        active:scale-[0.97] transition-transform
+        text-bg-primary disabled:opacity-50`}
     >
-      {submitting ? 'שולח...' : `הצע ${formatPrice(nextBid)} ↑`}
+      {submitting ? (
+        <span className="flex items-center justify-center gap-2">
+          <span className="w-5 h-5 border-2 border-bg-primary/30 border-t-bg-primary rounded-full animate-spin" />
+          שולח...
+        </span>
+      ) : (
+        <span className="text-mono-nums">הצע {formatPrice(nextBid)} ↑</span>
+      )}
     </button>
   );
 }

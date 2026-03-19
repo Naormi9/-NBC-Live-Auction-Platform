@@ -289,7 +289,7 @@ function BidsSection({ bids }: { bids: EnrichedBid[] }) {
                 </div>
               </div>
             </div>
-            <div className="font-bold text-bid-price text-lg">
+            <div className="font-bold text-bid-price text-lg text-mono-nums">
               {formatPrice(bid.amount)}
             </div>
           </div>
@@ -347,7 +347,7 @@ function WinsSection({ wins }: { wins: EnrichedWin[] }) {
                 <span className="text-xs px-2 py-1 rounded-full bg-bid-price/20 text-bid-price font-semibold">
                   נמכר
                 </span>
-                <div className="font-bold text-bid-price text-lg">
+                <div className="font-bold text-bid-price text-lg text-mono-nums">
                   {formatPrice(win.soldPrice)}
                 </div>
               </div>
